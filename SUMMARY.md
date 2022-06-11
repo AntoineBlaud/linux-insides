@@ -75,6 +75,7 @@
   * [Radix tree](DataStructures/linux-datastructures-2.md)
   * [Bit arrays](DataStructures/linux-datastructures-3.md)
 * [Theory](Theory/README.md)
+  * [Mounting root filesystem](summary/theory/mounting-root-filesystem.md)
   * [Paging](Theory/linux-theory-1.md)
   * [Elf64](Theory/linux-theory-2.md)
   * [Inline assembly](Theory/linux-theory-3.md)
