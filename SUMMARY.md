@@ -124,3 +124,4 @@
   * [IDT](KernelStructures/linux-kernelstructure-1.md)
 * [Useful links](LINKS.md)
 * [Contributors](contributors.md)
+* [Linux Hardening](summary/linux-hardening.md)
