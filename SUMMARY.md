@@ -124,8 +124,5 @@
   * [IDT](KernelStructures/linux-kernelstructure-1.md)
 * [Useful links](LINKS.md)
 * [Contributors](contributors.md)
+* [PKU](summary/pku.md)
 * [Linux Hardening](summary/linux-hardening.md)
-
-***
-
-* [Page 1](page-1.md)

@@ -1,16 +1,16 @@
-How does the `open` system call work
---------------------------------------------------------------------------------
+# Implementation of the open system call
 
-Introduction
---------------------------------------------------------------------------------
+### How does the `open` system call work
 
-This is the fifth part of the chapter that describes [system calls](https://en.wikipedia.org/wiki/System_call) mechanism in the Linux kernel. Previous parts of this chapter described this mechanism in general. Now I will try to describe implementation of different system calls in the Linux kernel. Previous parts from this chapter and parts from other chapters of the books describe mostly deep parts of the Linux kernel that are faintly visible or fully invisible from the userspace. But the Linux kernel code is not only about itself. The vast of the Linux kernel code provides ability to our code. Due to the linux kernel our programs can read/write from/to files and don't know anything about sectors, tracks and other parts of a disk structures, we can send data over network and don't build encapsulated network packets by hand and etc.
+### Introduction
 
-I don't know how about you, but it is interesting to me not only how an operating system works, but how do my software interacts with it. As you may know, our programs interacts with the kernel through the special mechanism which is called [system call](https://en.wikipedia.org/wiki/System_call). So, I've decided to write series of parts which will describe implementation and behavior of system calls which we are using every day like `read`, `write`, `open`, `close`, `dup` and etc.
+This is the fifth part of the chapter that describes [system calls](https://en.wikipedia.org/wiki/System\_call) mechanism in the Linux kernel. Previous parts of this chapter described this mechanism in general. Now I will try to describe implementation of different system calls in the Linux kernel. Previous parts from this chapter and parts from other chapters of the books describe mostly deep parts of the Linux kernel that are faintly visible or fully invisible from the userspace. But the Linux kernel code is not only about itself. The vast of the Linux kernel code provides ability to our code. Due to the linux kernel our programs can read/write from/to files and don't know anything about sectors, tracks and other parts of a disk structures, we can send data over network and don't build encapsulated network packets by hand and etc.
+
+I don't know how about you, but it is interesting to me not only how an operating system works, but how do my software interacts with it. As you may know, our programs interacts with the kernel through the special mechanism which is called [system call](https://en.wikipedia.org/wiki/System\_call). So, I've decided to write series of parts which will describe implementation and behavior of system calls which we are using every day like `read`, `write`, `open`, `close`, `dup` and etc.
 
 I have decided to start from the description of the [open](http://man7.org/linux/man-pages/man2/open.2.html) system call. if you have written at least one `C` program, you should know that before we are able to read/write or execute other manipulations with a file we need to open it with the `open` function:
 
-```C
+```
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,7 +33,7 @@ int main(int argc, char *argv) {
 }
 ```
 
-In this case, the open is the function from standard library, but not system call. The standard library will call related system call for us. The `open` call will return a [file descriptor](https://en.wikipedia.org/wiki/File_descriptor) which is just a unique number within our process which is associated with the opened file. Now as we opened a file and got file descriptor as result of `open` call, we may start to interact with this file. We can write into, read from it and etc. List of opened file by a process is available via [proc](https://en.wikipedia.org/wiki/Procfs) filesystem: 
+In this case, the open is the function from standard library, but not system call. The standard library will call related system call for us. The `open` call will return a [file descriptor](https://en.wikipedia.org/wiki/File\_descriptor) which is just a unique number within our process which is associated with the opened file. Now as we opened a file and got file descriptor as result of `open` call, we may start to interact with this file. We can write into, read from it and etc. List of opened file by a process is available via [proc](https://en.wikipedia.org/wiki/Procfs) filesystem:
 
 ```
 $ sudo ls /proc/1/fd/
@@ -46,14 +46,13 @@ I am not going to describe more details about the `open` routine from the usersp
 
 So let's start.
 
-Definition of the open system call
---------------------------------------------------------------------------------
+### Definition of the open system call
 
 If you have read the [fourth part](https://github.com/0xAX/linux-insides/blob/master/SysCall/linux-syscall-4.md) of the [linux-insides](https://github.com/0xAX/linux-insides/blob/master/SUMMARY.md) book, you should know that system calls are defined with the help of `SYSCALL_DEFINE` macro. So, the `open` system call is not exception.
 
 Definition of the `open` system call is located in the [fs/open.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/fs/open.c) source code file and looks pretty small for the first view:
 
-```C
+```
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 {
 	if (force_o_largefile())
@@ -65,52 +64,44 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 
 As you may guess, the `do_sys_open` function from the [same](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/fs/open.c) source code file does the main job. But before this function will be called, let's consider the `if` clause from which the implementation of the `open` system call starts:
 
-```C
+```
 if (force_o_largefile())
 	flags |= O_LARGEFILE;
 ```
 
-Here we apply the `O_LARGEFILE` flag to the flags which were passed to `open` system call in a case when the `force_o_largefile()` will return true.
-What is `O_LARGEFILE`? We may read this in the [man page](http://man7.org/linux/man-pages/man2/open.2.html) for the `open(2)` system call:
+Here we apply the `O_LARGEFILE` flag to the flags which were passed to `open` system call in a case when the `force_o_largefile()` will return true. What is `O_LARGEFILE`? We may read this in the [man page](http://man7.org/linux/man-pages/man2/open.2.html) for the `open(2)` system call:
 
-> O_LARGEFILE
+> O\_LARGEFILE
 >
-> (LFS) Allow files whose sizes cannot be represented in an off_t (but can be represented in an off64_t) to be opened.
+> (LFS) Allow files whose sizes cannot be represented in an off\_t (but can be represented in an off64\_t) to be opened.
 
-As we may read in the [GNU C Library Reference Manual](https://www.gnu.org/software/libc/manual/html_mono/libc.html#File-Position-Primitive):
+As we may read in the [GNU C Library Reference Manual](https://www.gnu.org/software/libc/manual/html\_mono/libc.html#File-Position-Primitive):
 
-> off_t
+> off\_t
 >
->    This is a signed integer type used to represent file sizes. 
->    In the GNU C Library, this type is no narrower than int.
->    If the source is compiled with _FILE_OFFSET_BITS == 64 this 
->    type is transparently replaced by off64_t.
+> This is a signed integer type used to represent file sizes. In the GNU C Library, this type is no narrower than int. If the source is compiled with \_FILE\_OFFSET\_BITS == 64 this type is transparently replaced by off64\_t.
 
 and
 
-> off64_t
+> off64\_t
 >
->    This type is used similar to off_t. The difference is that 
->    even on 32 bit machines, where the off_t type would have 32 bits,
->    off64_t has 64 bits and so is able to address files up to 2^63 bytes
->    in length. When compiling with _FILE_OFFSET_BITS == 64 this type 
->    is available under the name off_t.
+> This type is used similar to off\_t. The difference is that even on 32 bit machines, where the off\_t type would have 32 bits, off64\_t has 64 bits and so is able to address files up to 2^63 bytes in length. When compiling with \_FILE\_OFFSET\_BITS == 64 this type is available under the name off\_t.
 
-So it is not hard to guess that the `off_t`, `off64_t` and `O_LARGEFILE` are about a file size. In the case of the Linux kernel, the `O_LARGEFILE` is used  to disallow opening large files on 32bit systems if the caller didn't specify `O_LARGEFILE` flag during opening of a file. On 64bit systems we force on this flag in open system call. And the `force_o_largefile` macro from the [include/linux/fcntl.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/fcntl.h#L7) linux kernel header file confirms this:
+So it is not hard to guess that the `off_t`, `off64_t` and `O_LARGEFILE` are about a file size. In the case of the Linux kernel, the `O_LARGEFILE` is used to disallow opening large files on 32bit systems if the caller didn't specify `O_LARGEFILE` flag during opening of a file. On 64bit systems we force on this flag in open system call. And the `force_o_largefile` macro from the [include/linux/fcntl.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/fcntl.h#L7) linux kernel header file confirms this:
 
-```C
+```
 #ifndef force_o_largefile
 #define force_o_largefile() (BITS_PER_LONG != 32)
 #endif
 ```
 
-This macro may be architecture-specific as for example for [IA-64](https://en.wikipedia.org/wiki/IA-64) architecture, but in our case the [x86_64](https://en.wikipedia.org/wiki/X86-64) does not provide definition of the `force_o_largefile` and it will be used from [include/linux/fcntl.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/fcntl.h#L7).
+This macro may be architecture-specific as for example for [IA-64](https://en.wikipedia.org/wiki/IA-64) architecture, but in our case the [x86\_64](https://en.wikipedia.org/wiki/X86-64) does not provide definition of the `force_o_largefile` and it will be used from [include/linux/fcntl.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/fcntl.h#L7).
 
-So, as we may see the `force_o_largefile` is just a macro which expands to the `true` value in our case of [x86_64](https://en.wikipedia.org/wiki/X86-64) architecture. As we are considering 64-bit architecture, the `force_o_largefile` will be expanded to `true` and the `O_LARGEFILE` flag will be added to the set of flags which were passed to the `open` system call.
+So, as we may see the `force_o_largefile` is just a macro which expands to the `true` value in our case of [x86\_64](https://en.wikipedia.org/wiki/X86-64) architecture. As we are considering 64-bit architecture, the `force_o_largefile` will be expanded to `true` and the `O_LARGEFILE` flag will be added to the set of flags which were passed to the `open` system call.
 
-Now as we considered meaning of the `O_LARGEFILE` flag and `force_o_largefile` macro, we can proceed to the consideration of the implementation of the `do_sys_open` function. As I wrote above, this function is defined in the [same](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/fs/open.c) source code file and looks: 
+Now as we considered meaning of the `O_LARGEFILE` flag and `force_o_largefile` macro, we can proceed to the consideration of the implementation of the `do_sys_open` function. As I wrote above, this function is defined in the [same](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/fs/open.c) source code file and looks:
 
-```C
+```
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_flags op;
@@ -142,8 +133,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 
 Let's try to understand how the `do_sys_open` works step by step.
 
-open(2) flags
---------------------------------------------------------------------------------
+### open(2) flags
 
 As you know the `open` system call takes set of `flags` as second argument that control opening a file and `mode` as third argument that specifies permission the permissions of a file if it is created. The `do_sys_open` function starts from the call of the `build_open_flags` function which does some checks that set of the given flags is valid and handles different conditions of flags and mode.
 
@@ -154,7 +144,7 @@ Let's look at the implementation of the `build_open_flags`. This function is def
 
 The last argument - `op` is represented with the `open_flags` structure:
 
-```C
+```
 struct open_flags {
         int open_flag;
         umode_t mode;
@@ -168,13 +158,13 @@ which is defined in the [fs/internal.h](https://github.com/torvalds/linux/blob/1
 
 Implementation of the `build_open_flags` function starts from the definition of local variables and one of them is:
 
-```C
+```
 int acc_mode = ACC_MODE(flags);
 ```
 
 This local variable represents access mode and its initial value will be equal to the value of expanded `ACC_MODE` macro. This macro is defined in the [include/linux/fs.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/fs.h) and looks pretty interesting:
 
-```C
+```
 #define ACC_MODE(x) ("\004\002\006\006"[(x)&O_ACCMODE])
 #define O_ACCMODE   00000003
 ```
@@ -187,7 +177,7 @@ The `"\004\002\006\006"` is an array of four chars:
 
 So, the `ACC_MODE` macro just expands to the accession to this array by `[(x) & O_ACCMODE]` index. As we just saw, the `O_ACCMODE` is `00000003`. By applying `x & O_ACCMODE` we will take the two least significant bits which are represents `read`, `write` or `read/write` access modes:
 
-```C
+```
 #define O_RDONLY        00000000
 #define O_WRONLY        00000001
 #define O_RDWR          00000002
@@ -197,7 +187,7 @@ After getting value from the array by the calculated index, the `ACC_MODE` will 
 
 We may see following condition after we have calculated initial access mode:
 
-```C
+```
 if (flags & (O_CREAT | __O_TMPFILE))
 	op->mode = (mode & S_IALLUGO) | S_IFREG;
 else
@@ -206,17 +196,17 @@ else
 
 Here we reset permissions in `open_flags` instance if a opened file wasn't temporary and wasn't open for creation. This is because:
 
-> if  neither O_CREAT nor O_TMPFILE is specified, then mode is ignored.
+> if neither O\_CREAT nor O\_TMPFILE is specified, then mode is ignored.
 
 In other case if `O_CREAT` or `O_TMPFILE` were passed we canonicalize it to a regular file because a directory should be created with the [opendir](http://man7.org/linux/man-pages/man3/opendir.3.html) system call.
 
 At the next step we check that a file is not tried to be opened via [fanotify](http://man7.org/linux/man-pages/man7/fanotify.7.html) and without the `O_CLOEXEC` flag:
 
-```C
+```
 flags &= ~FMODE_NONOTIFY & ~O_CLOEXEC;
 ```
 
-We do this to not leak a [file descriptor](https://en.wikipedia.org/wiki/File_descriptor). By default, the new file descriptor is set to remain open across an `execve` system call, but the `open` system call supports `O_CLOEXEC` flag that can be used to change this default behaviour. So we do this to prevent leaking of a file descriptor when one thread opens a file to set `O_CLOEXEC` flag and in the same time the second process does a [fork](https://en.wikipedia.org/wiki/Fork_\(system_call\)) + [execve](https://en.wikipedia.org/wiki/Exec_\(system_call\)) and as you may remember that child will have copies of the parent's set of open file descriptors.
+We do this to not leak a [file descriptor](https://en.wikipedia.org/wiki/File\_descriptor). By default, the new file descriptor is set to remain open across an `execve` system call, but the `open` system call supports `O_CLOEXEC` flag that can be used to change this default behaviour. So we do this to prevent leaking of a file descriptor when one thread opens a file to set `O_CLOEXEC` flag and in the same time the second process does a [fork](https://en.wikipedia.org/wiki/Fork\_\(system\_call\)) + [execve](https://en.wikipedia.org/wiki/Exec\_\(system\_call\)) and as you may remember that child will have copies of the parent's set of open file descriptors.
 
 At the next step we check that if our flags contains `O_SYNC` flag, we apply `O_DSYNC` flag too:
 
@@ -229,7 +219,7 @@ The `O_SYNC` flag guarantees that the any write call will not return before all 
 
 After this we must be sure that if a user wants to create temporary file, the flags should contain `O_TMPFILE_MASK` or in other words it should contain or `O_CREAT` or `O_TMPFILE` or both and also it should be writeable:
 
-```C
+```
 if (flags & __O_TMPFILE) {
 	if ((flags & O_TMPFILE_MASK) != O_TMPFILE)
 		return -EINVAL;
@@ -243,7 +233,7 @@ if (flags & __O_TMPFILE) {
 
 as it is written in in the manual page:
 
-> O_TMPFILE  must  be  specified  with one of O_RDWR or O_WRONLY
+> O\_TMPFILE must be specified with one of O\_RDWR or O\_WRONLY
 
 If we didn't pass `O_TMPFILE` for creation of a temporary file, we check the `O_PATH` flag at the next condition. The `O_PATH` flag allows us to obtain a file descriptor that may be used for two following purposes:
 
@@ -252,13 +242,13 @@ If we didn't pass `O_TMPFILE` for creation of a temporary file, we check the `O_
 
 So, in this case the file itself is not opened, but operations like `dup`, `fcntl` and other can be used. So, if all file content related operations like `read`, `write` and other are not permitted, only `O_DIRECTORY | O_NOFOLLOW | O_PATH` flags can be used. We have finished with flags for this moment in the `build_open_flags` for this moment and we may fill our `open_flags->open_flag` with them:
 
-```C
+```
 op->open_flag = flags;
 ```
 
 Now we have filled `open_flag` field which represents flags that will control opening of a file and `mode` that will represent `umask` of a new file if we open file for creation. There are still to fill last flags in the our `open_flags` structure. The next is `op->acc_mode` which represents access mode to a opened file. We already filled the `acc_mode` local variable with the initial value at the beginning of the `build_open_flags` and now we check last two flags related to access mode:
 
-```C
+```
 if (flags & O_TRUNC)
         acc_mode |= MAY_WRITE;
 if (flags & O_APPEND)
@@ -270,13 +260,13 @@ These flags are - `O_TRUNC` that will truncate an opened file to length `0` if i
 
 The next field of the `open_flags` structure is - `intent`. It allows us to know about our intention or in other words what do we really want to do with file, open it, create, rename it or something else. So we set it to zero if our flags contains the `O_PATH` flag as we can't do anything related to a file content with this flag:
 
-```C
+```
 op->intent = flags & O_PATH ? 0 : LOOKUP_OPEN;
 ```
 
 or just to `LOOKUP_OPEN` intention. Additionally we set `LOOKUP_CREATE` intention if we want to create new file and to be sure that a file didn't exist before with `O_EXCL` flag:
 
-```C
+```
 if (flags & O_CREAT) {
 	op->intent |= LOOKUP_CREATE;
 	if (flags & O_EXCL)
@@ -286,7 +276,7 @@ if (flags & O_CREAT) {
 
 The last flag of the `open_flags` structure is the `lookup_flags`:
 
-```C
+```
 if (flags & O_DIRECTORY)
 	lookup_flags |= LOOKUP_DIRECTORY;
 if (!(flags & O_NOFOLLOW))
@@ -296,14 +286,13 @@ op->lookup_flags = lookup_flags;
 return 0;
 ```
 
-We fill it with `LOOKUP_DIRECTORY` if we want to open a directory and `LOOKUP_FOLLOW` if we don't want to follow (open) [symlink](https://en.wikipedia.org/wiki/Symbolic_link). That's all. It is the end of the `build_open_flags` function. The `open_flags` structure is filled with modes and flags for a file opening and we can return back to the `do_sys_open`.
+We fill it with `LOOKUP_DIRECTORY` if we want to open a directory and `LOOKUP_FOLLOW` if we don't want to follow (open) [symlink](https://en.wikipedia.org/wiki/Symbolic\_link). That's all. It is the end of the `build_open_flags` function. The `open_flags` structure is filled with modes and flags for a file opening and we can return back to the `do_sys_open`.
 
-Actual opening of a file
---------------------------------------------------------------------------------
+### Actual opening of a file
 
 At the next step after `build_open_flags` function is finished and we have formed flags and modes for our file we should get the `filename` structure with the help of the `getname` function by name of a file which was passed to the `open` system call:
 
-```C
+```
 tmp = getname(filename);
 if (IS_ERR(tmp))
 	return PTR_ERR(tmp);
@@ -311,7 +300,7 @@ if (IS_ERR(tmp))
 
 The `getname` function is defined in the [fs/namei.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/fs/namei.c) source code file and looks:
 
-```C
+```
 struct filename *
 getname(const char __user * filename)
 {
@@ -327,9 +316,9 @@ So, it just calls the `getname_flags` function and returns its result. The main 
 * refcnt - reference counter;
 * iname - a filename in a case when it will be less than `PATH_MAX`.
 
-As I already wrote above, the main goal of the `getname_flags` function is to copy name of a file which was passed to the `open` system call from user space to kernel space with the strncpy_from_user function. The next step after a filename will be copied to kernel space is getting of new non-busy file descriptor:
+As I already wrote above, the main goal of the `getname_flags` function is to copy name of a file which was passed to the `open` system call from user space to kernel space with the strncpy\_from\_user function. The next step after a filename will be copied to kernel space is getting of new non-busy file descriptor:
 
-```C
+```
 fd = get_unused_fd_flags(flags);
 ```
 
@@ -337,7 +326,7 @@ The `get_unused_fd_flags` function takes table of open files of the current proc
 
 The last and main step in the `do_sys_open` is the `do_filp_open` function:
 
-```C
+```
 struct file *f = do_filp_open(dfd, tmp, &op);
 
 if (IS_ERR(f)) {
@@ -353,7 +342,7 @@ The main goal of this function is to resolve given path name into `file` structu
 
 Now let's take a short look at the implementation of the `do_filp_open` function. This function is defined in the [fs/namei.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/fs/namei.c) linux kernel source code file and starts from initialization of the `nameidata` structure. This structure will provide a link to a file [inode](https://en.wikipedia.org/wiki/Inode). Actually this is one of the main point of the `do_filp_open` function to acquire an `inode` by the filename given to `open` system call. After the `nameidata` structure will be initialized, the `path_openat` function will be called:
 
-```C
+```
 filp = path_openat(&nd, op, flags | LOOKUP_RCU);
 
 if (unlikely(filp == ERR_PTR(-ECHILD)))
@@ -362,7 +351,7 @@ if (unlikely(filp == ERR_PTR(-ESTALE)))
 	filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
 ```
 
-Note that it is called three times. Actually, the Linux kernel will open the file in [RCU](https://www.kernel.org/doc/Documentation/RCU/whatisRCU.txt) mode. This is the most efficient way to open a file. If this try will be failed, the kernel enters the normal mode. The third call is relatively rare, only in the [nfs](https://en.wikipedia.org/wiki/Network_File_System) file system is likely to be used. The `path_openat` function executes `path lookup` or in other words it tries to find a `dentry` (what the Linux kernel uses to keep track of the hierarchy of files in directories) corresponding to a path.
+Note that it is called three times. Actually, the Linux kernel will open the file in [RCU](https://www.kernel.org/doc/Documentation/RCU/whatisRCU.txt) mode. This is the most efficient way to open a file. If this try will be failed, the kernel enters the normal mode. The third call is relatively rare, only in the [nfs](https://en.wikipedia.org/wiki/Network\_File\_System) file system is likely to be used. The `path_openat` function executes `path lookup` or in other words it tries to find a `dentry` (what the Linux kernel uses to keep track of the hierarchy of files in directories) corresponding to a path.
 
 The `path_openat` function starts from the call of the `get_empty_flip()` function that allocates a new `file` structure with some additional checks like do we exceed amount of opened files in the system or not and etc. After we have got allocated new `file` structure we call the `do_tmpfile` or `do_o_path` functions in a case if we have passed `O_TMPFILE | O_CREATE` or `O_PATH` flags during call of the `open` system call. These both cases are quite specific, so let's consider quite usual case when we want to open already existed file and want to read/write from/to it.
 
@@ -374,28 +363,26 @@ This function is defined in the [fs/open.c](https://github.com/torvalds/linux/bl
 
 That's all for now. We didn't consider **full** implementation of the `open` system call. We skip some parts like handling case when we want to open a file from other filesystem with different mount point, resolving symlinks and etc., but it should be not so hard to follow this stuff. This stuff does not included in **generic** implementation of open system call and depends on underlying filesystem. If you are interested in, you may lookup the `file_operations.open` callback function for a certain [filesystem](https://github.com/torvalds/linux/tree/master/fs).
 
-Conclusion
---------------------------------------------------------------------------------
+### Conclusion
 
 This is the end of the fifth part of the implementation of different system calls in the Linux kernel. If you have questions or suggestions, ping me on twitter [0xAX](https://twitter.com/0xAX), drop me an [email](mailto:anotherworldofworld@gmail.com), or just create an [issue](https://github.com/0xAX/linux-internals/issues/new). In the next part, we will continue to dive into system calls in the Linux kernel and see the implementation of the [read](http://man7.org/linux/man-pages/man2/read.2.html) system call.
 
-**Please note that English is not my first language and I am really sorry for any inconvenience. If you find any mistakes please send me PR to [linux-insides](https://github.com/0xAX/linux-internals).**
+**Please note that English is not my first language and I am really sorry for any inconvenience. If you find any mistakes please send me PR to** [**linux-insides**](https://github.com/0xAX/linux-internals)**.**
 
-Links
---------------------------------------------------------------------------------
+### Links
 
-* [system call](https://en.wikipedia.org/wiki/System_call)
+* [system call](https://en.wikipedia.org/wiki/System\_call)
 * [open](http://man7.org/linux/man-pages/man2/open.2.html)
-* [file descriptor](https://en.wikipedia.org/wiki/File_descriptor)
+* [file descriptor](https://en.wikipedia.org/wiki/File\_descriptor)
 * [proc](https://en.wikipedia.org/wiki/Procfs)
-* [GNU C Library Reference Manual](https://www.gnu.org/software/libc/manual/html_mono/libc.html#File-Position-Primitive)
-* [IA-64](https://en.wikipedia.org/wiki/IA-64) 
-* [x86_64](https://en.wikipedia.org/wiki/X86-64)
+* [GNU C Library Reference Manual](https://www.gnu.org/software/libc/manual/html\_mono/libc.html#File-Position-Primitive)
+* [IA-64](https://en.wikipedia.org/wiki/IA-64)
+* [x86\_64](https://en.wikipedia.org/wiki/X86-64)
 * [opendir](http://man7.org/linux/man-pages/man3/opendir.3.html)
 * [fanotify](http://man7.org/linux/man-pages/man7/fanotify.7.html)
-* [fork](https://en.wikipedia.org/wiki/Fork_\(system_call\))
-* [execve](https://en.wikipedia.org/wiki/Exec_\(system_call\))
-* [symlink](https://en.wikipedia.org/wiki/Symbolic_link)
+* [fork](https://en.wikipedia.org/wiki/Fork\_\(system\_call\))
+* [execve](https://en.wikipedia.org/wiki/Exec\_\(system\_call\))
+* [symlink](https://en.wikipedia.org/wiki/Symbolic\_link)
 * [audit](https://linux.die.net/man/8/auditd)
 * [inode](https://en.wikipedia.org/wiki/Inode)
 * [RCU](https://www.kernel.org/doc/Documentation/RCU/whatisRCU.txt)

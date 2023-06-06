@@ -1,8 +1,6 @@
-Paging
-================================================================================
+# Paging
 
-Introduction
---------------------------------------------------------------------------------
+## Introduction
 
 In the fifth [part](https://0xax.gitbook.io/linux-insides/summary/booting/linux-bootstrap-5) of the series `Linux kernel booting process` we learned about what the kernel does in its earliest stage. In the next step the kernel will initialize different things like `initrd` mounting, lockdep initialization, and many many other things, before we can see how the kernel runs the first init process.
 
@@ -18,8 +16,7 @@ As the Intel manual says:
 
 So... In this post I will try to explain the theory behind paging. Of course it will be closely related to the `x86_64` version of the Linux kernel, but we will not go into too much details (at least in this post).
 
-Enabling paging
---------------------------------------------------------------------------------
+## Enabling paging
 
 There are three paging modes:
 
@@ -33,28 +30,27 @@ We will only explain the last mode here. To enable the `IA-32e paging` paging mo
 * set the `CR4.PAE` bit;
 * set the `IA32_EFER.LME` bit.
 
-We already saw where those bits were set in [arch/x86/boot/compressed/head_64.S](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/boot/compressed/head_64.S):
+We already saw where those bits were set in [arch/x86/boot/compressed/head\_64.S](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/boot/compressed/head\_64.S):
 
-```assembly
+```
 movl	$(X86_CR0_PG | X86_CR0_PE), %eax
 movl	%eax, %cr0
 ```
 
 and
 
-```assembly
+```
 movl	$MSR_EFER, %ecx
 rdmsr
 btsl	$_EFER_LME, %eax
 wrmsr
 ```
 
-Paging structures
---------------------------------------------------------------------------------
+## Paging structures
 
-Paging divides the linear address space into fixed-size pages. Pages can be mapped into the physical address space or external storage. This fixed size is `4096` bytes for the `x86_64` Linux kernel. To perform the translation from linear address to physical address, special structures are used. Every structure is `4096` bytes and contains `512` entries (this only for `PAE` and `IA32_EFER.LME` modes). Paging structures are hierarchical and the Linux kernel uses 4 level of paging in the `x86_64` architecture. The CPU uses a part of linear addresses to identify the entry in another paging structure which is at the lower level, physical memory region (`page frame`) or physical address in this region (`page offset`). The address of the top level paging structure located in the `cr3` register. We have already seen this in [arch/x86/boot/compressed/head_64.S](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/boot/compressed/head_64.S):
+Paging divides the linear address space into fixed-size pages. Pages can be mapped into the physical address space or external storage. This fixed size is `4096` bytes for the `x86_64` Linux kernel. To perform the translation from linear address to physical address, special structures are used. Every structure is `4096` bytes and contains `512` entries (this only for `PAE` and `IA32_EFER.LME` modes). Paging structures are hierarchical and the Linux kernel uses 4 level of paging in the `x86_64` architecture. The CPU uses a part of linear addresses to identify the entry in another paging structure which is at the lower level, physical memory region (`page frame`) or physical address in this region (`page offset`). The address of the top level paging structure located in the `cr3` register. We have already seen this in [arch/x86/boot/compressed/head\_64.S](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/boot/compressed/head\_64.S):
 
-```assembly
+```
 leal	pgtable(%ebx), %eax
 movl	%eax, %cr3
 ```
@@ -86,16 +82,16 @@ These fields have the following meanings:
 
 The linear address translation is following:
 
-* A given linear address arrives to the [MMU](http://en.wikipedia.org/wiki/Memory_management_unit) instead of memory bus.
+* A given linear address arrives to the [MMU](http://en.wikipedia.org/wiki/Memory\_management\_unit) instead of memory bus.
 * 64-bit linear address is split into some parts. Only low 48 bits are significant, it means that `2^48` or 256 TBytes of linear-address space may be accessed at any given time.
 * `cr3` register stores the address of the 4 top-level paging structure.
 * `47:39` bits of the given linear address store an index into the paging structure level-4, `38:30` bits store index into the paging structure level-3, `29:21` bits store an index into the paging structure level-2, `20:12` bits store an index into the paging structure level-1 and `11:0` bits provide the offset into the physical page in byte.
 
 schematically, we can imagine it like this:
 
-![4-level paging](images/4_level_paging.png)
+![4-level paging](images/4\_level\_paging.png)
 
-Every access to a linear address is either a supervisor-mode access or a user-mode access. This access is determined by the `CPL` (current privilege level). If `CPL < 3` it is a supervisor mode access level, otherwise it is a user mode access level. For example, the top level page table entry contains access bits and has the following structure (See [arch/x86/include/asm/pgtable_types.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/include/asm/pgtable_types.h) for the bit offset definitions):
+Every access to a linear address is either a supervisor-mode access or a user-mode access. This access is determined by the `CPL` (current privilege level). If `CPL < 3` it is a supervisor mode access level, otherwise it is a user mode access level. For example, the top level page table entry contains access bits and has the following structure (See [arch/x86/include/asm/pgtable\_types.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/include/asm/pgtable\_types.h) for the bit offset definitions):
 
 ```
 63  62                  52 51                                                    32
@@ -128,13 +124,12 @@ Where:
 
 Ok, we know about the paging structures and their entries. Now let's see some details about 4-level paging in the Linux kernel.
 
-Paging structures in the Linux kernel
---------------------------------------------------------------------------------
+## Paging structures in the Linux kernel
 
 As we've seen, the Linux kernel in `x86_64` uses 4-level page tables. Their names are:
 
 * Page Global Directory
-* Page Upper  Directory
+* Page Upper Directory
 * Page Middle Directory
 * Page Table Entry
 
@@ -171,7 +166,7 @@ This solution is `sign extension`. Here we can see that the lower 48 bits of a v
 * Kernel space
 * Userspace
 
-Userspace occupies the lower part of the virtual address space, from `0x000000000000000` to `0x00007fffffffffff` and kernel space occupies the highest part from `0xffff8000000000` to `0xffffffffffffffff`. Note that bits `63:48` is 0 for userspace and 1 for kernel space. All addresses which are in kernel space and in userspace or in other words which higher `63:48` bits are zeroes or ones are called `canonical` addresses. There is a `non-canonical` area between these memory regions. Together these two memory regions (kernel space and user space) are exactly `2^48` bits wide. We can find the virtual memory map with 4 level page tables in the [Documentation/x86/x86_64/mm.txt](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/Documentation/x86/x86_64/mm.txt):
+Userspace occupies the lower part of the virtual address space, from `0x000000000000000` to `0x00007fffffffffff` and kernel space occupies the highest part from `0xffff8000000000` to `0xffffffffffffffff`. Note that bits `63:48` is 0 for userspace and 1 for kernel space. All addresses which are in kernel space and in userspace or in other words which higher `63:48` bits are zeroes or ones are called `canonical` addresses. There is a `non-canonical` area between these memory regions. Together these two memory regions (kernel space and user space) are exactly `2^48` bits wide. We can find the virtual memory map with 4 level page tables in the [Documentation/x86/x86\_64/mm.txt](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/Documentation/x86/x86\_64/mm.txt):
 
 ```
 0000000000000000 - 00007fffffffffff (=47 bits) user space, different per mm
@@ -193,9 +188,9 @@ ffffffffff600000 - ffffffffffdfffff (=8 MB) vsyscalls
 ffffffffffe00000 - ffffffffffffffff (=2 MB) unused hole
 ```
 
-We can see here the memory map for user space, kernel space and the non-canonical area in-between them. The user space memory map is simple. Let's take a closer look at the kernel space. We can see that it starts from the guard hole which is reserved for the hypervisor. We can find the definition of this guard hole in [arch/x86/include/asm/page_64_types.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/include/asm/page_64_types.h):
+We can see here the memory map for user space, kernel space and the non-canonical area in-between them. The user space memory map is simple. Let's take a closer look at the kernel space. We can see that it starts from the guard hole which is reserved for the hypervisor. We can find the definition of this guard hole in [arch/x86/include/asm/page\_64\_types.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/include/asm/page\_64\_types.h):
 
-```C
+```
 #define __PAGE_OFFSET _AC(0xffff880000000000, UL)
 ```
 
@@ -203,7 +198,7 @@ Previously this guard hole and `__PAGE_OFFSET` was from `0xffff800000000000` to 
 
 Next is the lowest usable address in kernel space - `ffff880000000000`. This virtual memory region is for direct mapping of all the physical memory. After the memory space which maps all the physical addresses, the guard hole. It needs to be between the direct mapping of all the physical memory and the vmalloc area. After the virtual memory map for the first terabyte and the unused hole after it, we can see the `kasan` shadow memory. It was added by [commit](https://github.com/torvalds/linux/commit/ef7f0d6a6ca8c9e4b27d78895af86c2fbfaeedb2) and provides the kernel address sanitizer. After the next unused hole we can see the `esp` fixup stacks (we will talk about it in other parts of this book) and the start of the kernel text mapping from the physical address - `0`. We can find the definition of this address in the same file as the `__PAGE_OFFSET`:
 
-```C
+```
 #define __START_KERNEL_map      _AC(0xffffffff80000000, UL)
 ```
 
@@ -240,23 +235,21 @@ This virtual address is split in parts as described above:
 * `38:30` - bits store index into the paging structure level-3;
 * `29:21` - bits store an index into the paging structure level-2;
 * `20:12` - bits store an index into the paging structure level-1;
-* `11:0`  - bits provide the offset into the physical page in byte.
+* `11:0` - bits provide the offset into the physical page in byte.
 
 That is all. Now you know a little about theory of `paging` and we can go ahead in the kernel source code and see the first initialization steps.
 
-Conclusion
---------------------------------------------------------------------------------
+## Conclusion
 
 It's the end of this short part about paging theory. Of course this post doesn't cover every detail of paging, but soon we'll see in practice how the Linux kernel builds paging structures and works with them.
 
-**Please note that English is not my first language and I am really sorry for any inconvenience. If you've found any mistakes please send me PR to [linux-insides](https://github.com/0xAX/linux-insides).**
+**Please note that English is not my first language and I am really sorry for any inconvenience. If you've found any mistakes please send me PR to** [**linux-insides**](https://github.com/0xAX/linux-insides)**.**
 
-Links
---------------------------------------------------------------------------------
+## Links
 
 * [Paging on Wikipedia](http://en.wikipedia.org/wiki/Paging)
 * [Intel 64 and IA-32 architectures software developer's manual volume 3A](http://www.intel.com/content/www/us/en/processors/architectures-software-developer-manuals.html)
-* [MMU](http://en.wikipedia.org/wiki/Memory_management_unit)
+* [MMU](http://en.wikipedia.org/wiki/Memory\_management\_unit)
 * [ELF64](https://github.com/0xAX/linux-insides/blob/master/Theory/ELF.md)
-* [Documentation/x86/x86_64/mm.txt](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/Documentation/x86/x86_64/mm.txt)
+* [Documentation/x86/x86\_64/mm.txt](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/Documentation/x86/x86\_64/mm.txt)
 * [Last part - Kernel booting process](https://0xax.gitbook.io/linux-insides/summary/booting/linux-bootstrap-5)

@@ -1,12 +1,10 @@
-Kernel booting process. Part 6.
-================================================================================
+# Kernel load address randomization
 
-Introduction
---------------------------------------------------------------------------------
+## Introduction
 
 This is the sixth part of the `Kernel booting process` series. In the [previous part](linux-bootstrap-5.md) we took a look at the final stages of the Linux kernel boot process. But we have skipped some important, more advanced parts.
 
-As you may remember, the entry point of the Linux kernel is the `start_kernel` function defined in the [main.c](https://github.com/torvalds/linux/blob/v4.16/init/main.c) source code file. This function is executed  at the address stored in `LOAD_PHYSICAL_ADDR`. and depends on the `CONFIG_PHYSICAL_START` kernel configuration option, which is `0x1000000` by default:
+As you may remember, the entry point of the Linux kernel is the `start_kernel` function defined in the [main.c](https://github.com/torvalds/linux/blob/v4.16/init/main.c) source code file. This function is executed at the address stored in `LOAD_PHYSICAL_ADDR`. and depends on the `CONFIG_PHYSICAL_START` kernel configuration option, which is `0x1000000` by default:
 
 ```
 config PHYSICAL_START
@@ -21,18 +19,17 @@ config PHYSICAL_START
 
 This value may be changed during kernel configuration, but the load address can also be configured to be a random value. For this purpose, the `CONFIG_RANDOMIZE_BASE` kernel configuration option should be enabled during kernel configuration.
 
-Now, the physical address where the Linux kernel image will be decompressed and loaded will be randomized. This part considers the case when the `CONFIG_RANDOMIZE_BASE` option is enabled and the load address of the kernel image is randomized for [security reasons](https://en.wikipedia.org/wiki/Address_space_layout_randomization).
+Now, the physical address where the Linux kernel image will be decompressed and loaded will be randomized. This part considers the case when the `CONFIG_RANDOMIZE_BASE` option is enabled and the load address of the kernel image is randomized for [security reasons](https://en.wikipedia.org/wiki/Address\_space\_layout\_randomization).
 
-Page Table Initialization
---------------------------------------------------------------------------------
+## Page Table Initialization
 
 Before the kernel decompressor can look for a random memory range to decompress and load the kernel to, the identity mapped page tables should be initialized. If the [bootloader](https://en.wikipedia.org/wiki/Booting) used the [16-bit or 32-bit boot protocol](https://github.com/torvalds/linux/blob/v4.16/Documentation/x86/boot.txt), we already have page tables. But, there may be problems if the kernel decompressor selects a memory range which is valid only in a 64-bit context. That's why we need to build new identity mapped page tables.
 
 Indeed, the first step in randomizing the kernel load address is to build new identity mapped page tables. But first, let's reflect on how we got to this point.
 
-In the [previous part](linux-bootstrap-5.md), we followed the transition to [long mode](https://en.wikipedia.org/wiki/Long_mode) and jumped to the kernel decompressor entry point - the `extract_kernel` function. The randomization stuff begins with a call to this function:
+In the [previous part](linux-bootstrap-5.md), we followed the transition to [long mode](https://en.wikipedia.org/wiki/Long\_mode) and jumped to the kernel decompressor entry point - the `extract_kernel` function. The randomization stuff begins with a call to this function:
 
-```C
+```
 void choose_random_location(unsigned long input,
                             unsigned long input_size,
                             unsigned long *output,
@@ -43,15 +40,15 @@ void choose_random_location(unsigned long input,
 
 This function takes five parameters:
 
-  * `input`;
-  * `input_size`;
-  * `output`;
-  * `output_isze`;
-  * `virt_addr`.
+* `input`;
+* `input_size`;
+* `output`;
+* `output_isze`;
+* `virt_addr`.
 
 Let's try to understand what these parameters are. The first parameter, `input` is just the `input_data` parameter of the `extract_kernel` function from the [arch/x86/boot/compressed/misc.c](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/misc.c) source code file, cast to `unsigned long`:
 
-```C
+```
 asmlinkage __visible void *extract_kernel(void *rmode, memptr heap,
 				                          unsigned char *input_data,
 				                          unsigned long input_len,
@@ -71,15 +68,15 @@ asmlinkage __visible void *extract_kernel(void *rmode, memptr heap,
 }
 ```
 
-This parameter is passed through assembly from the [arch/x86/boot/compressed/head_64.S](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head_64.S) source code file:
+This parameter is passed through assembly from the [arch/x86/boot/compressed/head\_64.S](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head\_64.S) source code file:
 
-```C
+```
 leaq	input_data(%rip), %rdx
 ```
 
 `input_data` is generated by the little [mkpiggy](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/mkpiggy.c) program. If you've tried compiling the Linux kernel yourself, you may find the output generated by this program in the `linux/arch/x86/boot/compressed/piggy.S` source code file. In my case this file looks like this:
 
-```assembly
+```
 .section ".rodata..compressed","a",@progbits
 .globl z_input_len
 z_input_len = 6988196
@@ -91,23 +88,23 @@ input_data:
 input_data_end:
 ```
 
-As you can see, it contains four global symbols. The first two, `z_input_len` and `z_output_len` are the sizes of the compressed and uncompressed `vmlinux.bin.gz` archive. The third is our `input_data` parameter which points to the linux kernel image's raw binary (stripped of all debugging symbols, comments and relocation information). The last parameter,  `input_data_end`, points to the end of the compressed linux image.
+As you can see, it contains four global symbols. The first two, `z_input_len` and `z_output_len` are the sizes of the compressed and uncompressed `vmlinux.bin.gz` archive. The third is our `input_data` parameter which points to the linux kernel image's raw binary (stripped of all debugging symbols, comments and relocation information). The last parameter, `input_data_end`, points to the end of the compressed linux image.
 
 So, the first parameter to the `choose_random_location` function is the pointer to the compressed kernel image that is embedded into the `piggy.o` object file.
 
 The second parameter of the `choose_random_location` function is `z_input_len`.
 
-The third and fourth parameters of the `choose_random_location` function are the address of the decompressed kernel image and its length respectively. The decompressed kernel's address came from the [arch/x86/boot/compressed/head_64.S](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head_64.S) source code file and is the address of the `startup_32` function  aligned to a 2 megabyte boundary. The size of the decompressed kernel is given by `z_output_len` which, again, is found in `piggy.S`.
+The third and fourth parameters of the `choose_random_location` function are the address of the decompressed kernel image and its length respectively. The decompressed kernel's address came from the [arch/x86/boot/compressed/head\_64.S](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head\_64.S) source code file and is the address of the `startup_32` function aligned to a 2 megabyte boundary. The size of the decompressed kernel is given by `z_output_len` which, again, is found in `piggy.S`.
 
 The last parameter of the `choose_random_location` function is the virtual address of the kernel load address. As can be seen, by default, it coincides with the default physical load address:
 
-```C
+```
 unsigned long virt_addr = LOAD_PHYSICAL_ADDR;
 ```
 
 The physical load address is defined by the configuration options:
 
-```C
+```
 #define LOAD_PHYSICAL_ADDR ((CONFIG_PHYSICAL_START \
 				+ (CONFIG_PHYSICAL_ALIGN - 1)) \
 				& ~(CONFIG_PHYSICAL_ALIGN - 1))
@@ -115,7 +112,7 @@ The physical load address is defined by the configuration options:
 
 We've covered `choose_random_location`'s parameters, so let's look at its implementation. This function starts by checking the `nokaslr` option in the kernel command line:
 
-```C
+```
 if (cmdline_find_option_bool("nokaslr")) {
 	warn("KASLR disabled: 'nokaslr' on cmdline.");
 	return;
@@ -136,19 +133,19 @@ hibernation will be disabled.
 
 Let's assume that we didn't pass `nokaslr` to the kernel command line and the `CONFIG_RANDOMIZE_BASE` kernel configuration option is enabled. In this case we add `kASLR` flag to kernel load flags:
 
-```C
+```
 boot_params->hdr.loadflags |= KASLR_FLAG;
 ```
 
 Now, we call another function:
 
-```C
+```
 initialize_identity_maps();
 ```
 
-The `initialize_identity_maps` function is defined in the [arch/x86/boot/compressed/kaslr_64.c](https://github.com/torvalds/linux/blob/master/arch/x86/boot/compressed/kaslr_64.c) source code file. This function starts by initialising an instance of the `x86_mapping_info` structure called `mapping_info`:
+The `initialize_identity_maps` function is defined in the [arch/x86/boot/compressed/kaslr\_64.c](https://github.com/torvalds/linux/blob/master/arch/x86/boot/compressed/kaslr\_64.c) source code file. This function starts by initialising an instance of the `x86_mapping_info` structure called `mapping_info`:
 
-```C
+```
 mapping_info.alloc_pgt_page = alloc_pgt_page;
 mapping_info.context = &pgt_data;
 mapping_info.page_flag = __PAGE_KERNEL_LARGE_EXEC | sev_me_mask;
@@ -157,7 +154,7 @@ mapping_info.kernpg_flag = _KERNPG_TABLE;
 
 The `x86_mapping_info` structure is defined in the [arch/x86/include/asm/init.h](https://github.com/torvalds/linux/blob/v4.16/arch/x86/include/asm/init.h) header file and looks like this:
 
-```C
+```
 struct x86_mapping_info {
 	void *(*alloc_pgt_page)(void *);
 	void *context;
@@ -170,18 +167,18 @@ struct x86_mapping_info {
 
 This structure provides information about memory mappings. As you may remember from the previous part, we have already set up page tables to cover the range `0` to `4G`. This won't do since we might generate a randomized address outside of the 4 gigabyte range. So, the `initialize_identity_maps` function initializes the memory for a new page table entry. First, let's take a look at the definition of the `x86_mapping_info` structure.
 
-`alloc_pgt_page` is a callback function that is called to allocate space for a page table entry. The `context` field is an instance of the `alloc_pgt_data` structure. We use it to track allocated page tables. The `page_flag` and `kernpg_flag` fields are page flags. The first represents flags for `PMD` or `PUD` entries. The `kernpg_flag` field represents overridable flags for kernel pages. The `direct_gbpages` field is used to check if huge pages are supported and the last field,  `offset`, represents the offset between the kernel's virtual addresses and its physical addresses up to the `PMD` level.
+`alloc_pgt_page` is a callback function that is called to allocate space for a page table entry. The `context` field is an instance of the `alloc_pgt_data` structure. We use it to track allocated page tables. The `page_flag` and `kernpg_flag` fields are page flags. The first represents flags for `PMD` or `PUD` entries. The `kernpg_flag` field represents overridable flags for kernel pages. The `direct_gbpages` field is used to check if huge pages are supported and the last field, `offset`, represents the offset between the kernel's virtual addresses and its physical addresses up to the `PMD` level.
 
 The `alloc_pgt_page` callback just checks that there is space for a new page, allocates it in the `pgt_buf` field of the `alloc_pgt_data` structure and returns the address of the new page:
 
-```C
+```
 entry = pages->pgt_buf + pages->pgt_buf_offset;
 pages->pgt_buf_offset += PAGE_SIZE;
 ```
 
 Here's what the `alloc_pgt_data` structure looks like:
 
-```C
+```
 struct alloc_pgt_data {
 	unsigned char *pgt_buf;
 	unsigned long pgt_buf_size;
@@ -191,36 +188,35 @@ struct alloc_pgt_data {
 
 The last goal of the `initialize_identity_maps` function is to initialize `pgdt_buf_size` and `pgt_buf_offset`. As we are only in the initialization phase, the `initialze_identity_maps` function sets `pgt_buf_offset` to zero:
 
-```C
+```
 pgt_data.pgt_buf_offset = 0;
 ```
 
-`pgt_data.pgt_buf_size` will be set to `77824` or `69632` depending on which boot protocol was used by the bootloader (64-bit or 32-bit). The same is done for `pgt_data.pgt_buf`. If a bootloader loaded the kernel at `startup_32`, `pgdt_data.pgdt_buf` will point to the end of the already initialized page table in the [arch/x86/boot/compressed/head_64.S](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head_64.S) source code file:
+`pgt_data.pgt_buf_size` will be set to `77824` or `69632` depending on which boot protocol was used by the bootloader (64-bit or 32-bit). The same is done for `pgt_data.pgt_buf`. If a bootloader loaded the kernel at `startup_32`, `pgdt_data.pgdt_buf` will point to the end of the already initialized page table in the [arch/x86/boot/compressed/head\_64.S](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head\_64.S) source code file:
 
-```C
+```
 pgt_data.pgt_buf = _pgtable + BOOT_INIT_PGT_SIZE;
 ```
 
-Here, `_pgtable` points to the beginning of [_pgtable](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/vmlinux.lds.S). On the other hand, if the bootloader used the 64-bit boot protocol and loaded the kernel at `startup_64`, the early page tables should already be built by the bootloader itself and `_pgtable` will just point to those instead:
+Here, `_pgtable` points to the beginning of [\_pgtable](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/vmlinux.lds.S). On the other hand, if the bootloader used the 64-bit boot protocol and loaded the kernel at `startup_64`, the early page tables should already be built by the bootloader itself and `_pgtable` will just point to those instead:
 
-```C
+```
 pgt_data.pgt_buf = _pgtable
 ```
 
 As the buffer for new page tables is initialized, we may return to the `choose_random_location` function.
 
-Avoiding Reserved Memory Ranges
---------------------------------------------------------------------------------
+## Avoiding Reserved Memory Ranges
 
-After the stuff related to identity page tables is initialized, we can choose a random memory location to extract the kernel image to. But as you may have guessed, we can't just choose any address. There are certain reserved memory regions which are occupied by important things like the [initrd](https://en.wikipedia.org/wiki/Initial_ramdisk) and the kernel command line which must be avoided. The `mem_avoid_init` function will help us do this:
+After the stuff related to identity page tables is initialized, we can choose a random memory location to extract the kernel image to. But as you may have guessed, we can't just choose any address. There are certain reserved memory regions which are occupied by important things like the [initrd](https://en.wikipedia.org/wiki/Initial\_ramdisk) and the kernel command line which must be avoided. The `mem_avoid_init` function will help us do this:
 
-```C
+```
 mem_avoid_init(input, input_size, *output);
 ```
 
 All unsafe memory regions will be collected in an array called `mem_avoid`:
 
-```C
+```
 struct mem_vector {
 	unsigned long long start;
 	unsigned long long size;
@@ -229,9 +225,9 @@ struct mem_vector {
 static struct mem_vector mem_avoid[MEM_AVOID_MAX];
 ```
 
-Here, `MEM_AVOID_MAX` is from the `mem_avoid_index` [enum](https://en.wikipedia.org/wiki/Enumerated_type#C) which represents different types of reserved memory regions:
+Here, `MEM_AVOID_MAX` is from the `mem_avoid_index` [enum](https://en.wikipedia.org/wiki/Enumerated\_type#C) which represents different types of reserved memory regions:
 
-```C
+```
 enum mem_avoid_index {
 	MEM_AVOID_ZO_RANGE = 0,
 	MEM_AVOID_INITRD,
@@ -247,16 +243,16 @@ Both are defined in the [arch/x86/boot/compressed/kaslr.c](https://github.com/to
 
 Let's look at the implementation of the `mem_avoid_init` function. The main goal of this function is to store information about reserved memory regions with descriptions given by the `mem_avoid_index` enum in the `mem_avoid` array and to create new pages for such regions in our new identity mapped buffer. The `mem_avoid_index` function does the same thing for all elements in the `mem_avoid_index`enum, so let's look at a typical example of the process:
 
-```C
+```
 mem_avoid[MEM_AVOID_ZO_RANGE].start = input;
 mem_avoid[MEM_AVOID_ZO_RANGE].size = (output + init_size) - input;
 add_identity_map(mem_avoid[MEM_AVOID_ZO_RANGE].start,
 		 mem_avoid[MEM_AVOID_ZO_RANGE].size);
 ```
 
-THe `mem_avoid_init` function first tries to avoid memory regions currently used to decompress the kernel. We fill an entry from the `mem_avoid` array with the start address and the size of the relevant region and call the `add_identity_map` function, which  builds the identity mapped pages for this region. The `add_identity_map` function is defined in the [arch/x86/boot/compressed/kaslr_64.c](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/kaslr_64.c) source code file and looks like this:
+THe `mem_avoid_init` function first tries to avoid memory regions currently used to decompress the kernel. We fill an entry from the `mem_avoid` array with the start address and the size of the relevant region and call the `add_identity_map` function, which builds the identity mapped pages for this region. The `add_identity_map` function is defined in the [arch/x86/boot/compressed/kaslr\_64.c](https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/kaslr\_64.c) source code file and looks like this:
 
-```C
+```
 void add_identity_map(unsigned long start, unsigned long size)
 {
 	unsigned long end = start + size;
@@ -273,18 +269,18 @@ void add_identity_map(unsigned long start, unsigned long size)
 
 The `round_up` and `round_down` functions are used to align the start and end addresses to a 2 megabyte boundary.
 
-In the end this function calls the `kernel_ident_mapping_init` function from the [arch/x86/mm/ident_map.c](https://github.com/torvalds/linux/blob/v4.16/arch/x86/mm/ident_map.c) source code file and passes the previously initialized `mapping_info` instance, the address of the top level page table and the start and end addresses of the memory region for which a new identity mapping should be built.
+In the end this function calls the `kernel_ident_mapping_init` function from the [arch/x86/mm/ident\_map.c](https://github.com/torvalds/linux/blob/v4.16/arch/x86/mm/ident\_map.c) source code file and passes the previously initialized `mapping_info` instance, the address of the top level page table and the start and end addresses of the memory region for which a new identity mapping should be built.
 
 The `kernel_ident_mapping_init` function sets default flags for new pages if they were not already set:
 
-```C
+```
 if (!info->kernpg_flag)
 	info->kernpg_flag = _KERNPG_TABLE;
 ```
 
 It then starts to build new 2-megabyte (because of the `PSE` bit in `mapping_info.page_flag`) page entries (`PGD -> P4D -> PUD -> PMD` if we're using [five-level page tables](https://lwn.net/Articles/717293/) or `PGD -> PUD -> PMD` if [four-level page tables](https://lwn.net/Articles/117749/) are used) associated with the given addresses.
 
-```C
+```
 for (; addr < end; addr = next) {
 	p4d_t *p4d;
 
@@ -299,20 +295,19 @@ for (; addr < end; addr = next) {
 }
 ```
 
-The first thing this for loop does is to find the next entry of the `Page Global Directory` for the given address. If the entry's address is greater than the `end` of the given memory region, we set its size to `end`. After this, we allocate a new page with the  `x86_mapping_info` callback that we looked at previously and call the `ident_p4d_init` function. The `ident_p4d_init` function will do the same thing, but for the lower level page directories (`p4d` -> `pud` -> `pmd`).
+The first thing this for loop does is to find the next entry of the `Page Global Directory` for the given address. If the entry's address is greater than the `end` of the given memory region, we set its size to `end`. After this, we allocate a new page with the `x86_mapping_info` callback that we looked at previously and call the `ident_p4d_init` function. The `ident_p4d_init` function will do the same thing, but for the lower level page directories (`p4d` -> `pud` -> `pmd`).
 
 That's all.
 
-We now have new page entries related to reserved addresses in our page tables. We haven't reached the end of the `mem_avoid_init` function, but the rest is similar. It builds pages for the [initrd](https://en.wikipedia.org/wiki/Initial_ramdisk) and the kernel command line, among other things.
+We now have new page entries related to reserved addresses in our page tables. We haven't reached the end of the `mem_avoid_init` function, but the rest is similar. It builds pages for the [initrd](https://en.wikipedia.org/wiki/Initial\_ramdisk) and the kernel command line, among other things.
 
 Now we may return to the `choose_random_location` function.
 
-Physical address randomization
---------------------------------------------------------------------------------
+## Physical address randomization
 
 After the reserved memory regions have been stored in the `mem_avoid` array and identity mapped pages are built for them, we select the region with the lowest available address to decompress the kernel to:
 
-```C
+```
 min_addr = min(*output, 512UL << 20);
 ```
 
@@ -320,7 +315,7 @@ You will notice that the address should be within the first `512` megabytes. A l
 
 The next step is to select random physical and virtual addresses to load the kernel to. The first is the physical addresses:
 
-```C
+```
 random_addr = find_random_phys_addr(min_addr, output_size);
 ```
 
@@ -340,9 +335,9 @@ static unsigned long find_random_phys_addr(unsigned long minimum,
 }
 ```
 
-The main goal of the `process_efi_entries` function is to find all suitable memory ranges in fully accessible memory to load kernel. If the kernel is compiled and run on a system without [EFI](https://en.wikipedia.org/wiki/Unified_Extensible_Firmware_Interface) support, we continue to search for such memory regions in the [e820](https://en.wikipedia.org/wiki/E820) region. All memory regions found will be stored in the `slot_areas` array:
+The main goal of the `process_efi_entries` function is to find all suitable memory ranges in fully accessible memory to load kernel. If the kernel is compiled and run on a system without [EFI](https://en.wikipedia.org/wiki/Unified\_Extensible\_Firmware\_Interface) support, we continue to search for such memory regions in the [e820](https://en.wikipedia.org/wiki/E820) region. All memory regions found will be stored in the `slot_areas` array:
 
-```C
+```
 struct slot_area {
 	unsigned long addr;
 	int num;
@@ -353,22 +348,21 @@ struct slot_area {
 static struct slot_area slot_areas[MAX_SLOT_AREA];
 ```
 
-The kernel will select a random index from this array to decompress the kernel to. The selection process is conducted by the  `slots_fetch_random` function. The main goal of the `slots_fetch_random` function is to select a random memory range from the `slot_areas` array via the `kaslr_get_random_long` function:
+The kernel will select a random index from this array to decompress the kernel to. The selection process is conducted by the `slots_fetch_random` function. The main goal of the `slots_fetch_random` function is to select a random memory range from the `slot_areas` array via the `kaslr_get_random_long` function:
 
-```C
+```
 slot = kaslr_get_random_long("Physical") % slot_max;
 ```
 
-The `kaslr_get_random_long` function is defined in the [arch/x86/lib/kaslr.c](https://github.com/torvalds/linux/blob/v4.16/arch/x86/lib/kaslr.c) source code file and as its name suggests, returns a random number. Note that the random number can be generated in a number of ways depending on kernel configuration and features present in the system (For example, using the [time stamp counter](https://en.wikipedia.org/wiki/Time_Stamp_Counter), or [rdrand](https://en.wikipedia.org/wiki/RdRand) or some other method).
+The `kaslr_get_random_long` function is defined in the [arch/x86/lib/kaslr.c](https://github.com/torvalds/linux/blob/v4.16/arch/x86/lib/kaslr.c) source code file and as its name suggests, returns a random number. Note that the random number can be generated in a number of ways depending on kernel configuration and features present in the system (For example, using the [time stamp counter](https://en.wikipedia.org/wiki/Time\_Stamp\_Counter), or [rdrand](https://en.wikipedia.org/wiki/RdRand) or some other method).
 
 We now have a random physical address to decompress the kernel to.
 
-Virtual address randomization
---------------------------------------------------------------------------------
+## Virtual address randomization
 
 After selecting a random physical address for the decompressed kernel, we generate identity mapped pages for the region:
 
-```C
+```
 random_addr = find_random_phys_addr(min_addr, output_size);
 
 if (*output != random_addr) {
@@ -377,23 +371,22 @@ if (*output != random_addr) {
 }
 ```
 
-From now on, `output` will store the base address of the memory region where kernel will be decompressed. Currently, we have only randomized the physical address. We can randomize the virtual address as well on the [x86_64](https://en.wikipedia.org/wiki/X86-64) architecture:
+From now on, `output` will store the base address of the memory region where kernel will be decompressed. Currently, we have only randomized the physical address. We can randomize the virtual address as well on the [x86\_64](https://en.wikipedia.org/wiki/X86-64) architecture:
 
-```C
+```
 if (IS_ENABLED(CONFIG_X86_64))
 	random_addr = find_random_virt_addr(LOAD_PHYSICAL_ADDR, output_size);
 
 *virt_addr = random_addr;
 ```
 
- In architectures other than `x86_64`, the randomized physical and virtual addresses are the same. The `find_random_virt_addr` function calculates the number of virtual memory ranges needed to hold the kernel image. It calls the `kaslr_get_random_long` function, which we have already seen being used to generate a random `physical` address.
+In architectures other than `x86_64`, the randomized physical and virtual addresses are the same. The `find_random_virt_addr` function calculates the number of virtual memory ranges needed to hold the kernel image. It calls the `kaslr_get_random_long` function, which we have already seen being used to generate a random `physical` address.
 
 At this point we have randomized both the base physical (`*output`) and virtual (`*virt_addr`) addresses for the decompressed kernel.
 
 That's all.
 
-Conclusion
---------------------------------------------------------------------------------
+## Conclusion
 
 This is the end of the sixth and last part concerning the linux kernel's booting process. We will not see any more posts about kernel booting (though there may be updates to this and previous posts). We will now turn to other parts of the linux kernel instead.
 
@@ -401,21 +394,20 @@ The next chapter will be about kernel initialization and we will study the first
 
 If you have any questions or suggestions write me a comment or ping me in [twitter](https://twitter.com/0xAX).
 
-**Please note that English is not my first language, And I am really sorry for any inconvenience. If you find any mistakes please send me PR to [linux-insides](https://github.com/0xAX/linux-internals).**
+**Please note that English is not my first language, And I am really sorry for any inconvenience. If you find any mistakes please send me PR to** [**linux-insides**](https://github.com/0xAX/linux-internals)**.**
 
-Links
---------------------------------------------------------------------------------
+## Links
 
-* [Address space layout randomization](https://en.wikipedia.org/wiki/Address_space_layout_randomization)
+* [Address space layout randomization](https://en.wikipedia.org/wiki/Address\_space\_layout\_randomization)
 * [Linux kernel boot protocol](https://github.com/torvalds/linux/blob/v4.16/Documentation/x86/boot.txt)
-* [long mode](https://en.wikipedia.org/wiki/Long_mode)
-* [initrd](https://en.wikipedia.org/wiki/Initial_ramdisk)
-* [Enumerated type](https://en.wikipedia.org/wiki/Enumerated_type#C)
+* [long mode](https://en.wikipedia.org/wiki/Long\_mode)
+* [initrd](https://en.wikipedia.org/wiki/Initial\_ramdisk)
+* [Enumerated type](https://en.wikipedia.org/wiki/Enumerated\_type#C)
 * [four-level page tables](https://lwn.net/Articles/117749/)
 * [five-level page tables](https://lwn.net/Articles/717293/)
-* [EFI](https://en.wikipedia.org/wiki/Unified_Extensible_Firmware_Interface)
+* [EFI](https://en.wikipedia.org/wiki/Unified\_Extensible\_Firmware\_Interface)
 * [e820](https://en.wikipedia.org/wiki/E820)
-* [time stamp counter](https://en.wikipedia.org/wiki/Time_Stamp_Counter)
+* [time stamp counter](https://en.wikipedia.org/wiki/Time\_Stamp\_Counter)
 * [rdrand](https://en.wikipedia.org/wiki/RdRand)
-* [x86_64](https://en.wikipedia.org/wiki/X86-64)
+* [x86\_64](https://en.wikipedia.org/wiki/X86-64)
 * [Previous part](linux-bootstrap-5.md)

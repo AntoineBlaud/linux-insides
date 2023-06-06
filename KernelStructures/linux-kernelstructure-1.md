@@ -1,5 +1,4 @@
-interrupt-descriptor table (IDT)
-================================================================================
+# IDT
 
 Three general interrupt & exceptions sources:
 
@@ -17,8 +16,7 @@ Types of Exceptions:
 
 `Nonmaskable` interrupts (NMI) are unaffected by the value of the rFLAGS.IF bit. However, the occurrence of an NMI masks further NMIs until an IRET instruction is executed.
 
-Specific exception and interrupt sources are assigned a fixed vector-identification number (also called an “interrupt vector” or simply “vector”). The interrupt vector is used by the interrupt-handling mechanism to locate the system-software service routine assigned to the exception or interrupt. Up to
-256 unique interrupt vectors are available. The first 32 vectors are reserved for predefined exception and interrupt conditions. They are defined in the [arch/x86/include/asm/traps.h](http://lxr.free-electrons.com/source/arch/x86/include/asm/traps.h#L121) header file:
+Specific exception and interrupt sources are assigned a fixed vector-identification number (also called an “interrupt vector” or simply “vector”). The interrupt vector is used by the interrupt-handling mechanism to locate the system-software service routine assigned to the exception or interrupt. Up to 256 unique interrupt vectors are available. The first 32 vectors are reserved for predefined exception and interrupt conditions. They are defined in the [arch/x86/include/asm/traps.h](http://lxr.free-electrons.com/source/arch/x86/include/asm/traps.h#L121) header file:
 
 ```
 /* Interrupts/Exceptions */
@@ -47,8 +45,7 @@ enum {
 };
 ```
 
-Error Codes
---------------------------------------------------------------------------------
+## Error Codes
 
 The processor exception-handling mechanism reports error and status information for some exceptions using an error code. The error code is pushed onto the stack by the exception-mechanism during the control transfer into the exception handler. The error code has two formats:
 
@@ -92,8 +89,7 @@ Where:
 * `R/W` - If this bit is cleared to 0, the access that caused the page fault is a memory read. If this bit is set to 1, the memory access that caused the page fault was a write;
 * `P` - If this bit is cleared to 0, the page fault was caused by a not-present page. If this bit is set to 1, the page fault was caused by a page-protection violation.
 
-Interrupt Control Transfers
---------------------------------------------------------------------------------
+## Interrupt Control Transfers
 
 The IDT may contain any of three kinds of gate descriptors:
 
@@ -141,7 +137,7 @@ Where
 
 An `IDT` descriptor is represented by the following structure in the Linux kernel (only for `x86_64`):
 
-```C
+```
 struct gate_struct64 {
 	u16 offset_low;
 	u16 segment;
@@ -152,11 +148,11 @@ struct gate_struct64 {
 } __attribute__((packed));
 ```
 
-which is defined in the [arch/x86/include/asm/desc_defs.h](http://lxr.free-electrons.com/source/arch/x86/include/asm/desc_defs.h#L51) header file.
+which is defined in the [arch/x86/include/asm/desc\_defs.h](http://lxr.free-electrons.com/source/arch/x86/include/asm/desc\_defs.h#L51) header file.
 
 A task gate descriptor does not contain `IST` field and its format differs from interrupt/trap gates:
 
-```C
+```
 struct ldttss_desc64 {
 	u16 limit0;
 	u16 base0;
@@ -167,24 +163,20 @@ struct ldttss_desc64 {
 } __attribute__((packed));
 ```
 
-Exceptions During a Task Switch
---------------------------------------------------------------------------------
+## Exceptions During a Task Switch
 
 An exception can occur during a task switch while loading a segment selector. Page faults can also occur when accessing a TSS. In these cases, the hardware task-switch mechanism completes loading the new task state from the TSS, and then triggers the appropriate exception mechanism.
 
 **In long mode, an exception cannot occur during a task switch, because the hardware task-switch mechanism is disabled.**
 
-Nonmaskable interrupt
---------------------------------------------------------------------------------
+## Nonmaskable interrupt
 
 **TODO**
 
-API
---------------------------------------------------------------------------------
+## API
 
 **TODO**
 
-Interrupt Stack Table
---------------------------------------------------------------------------------
+## Interrupt Stack Table
 
 **TODO**

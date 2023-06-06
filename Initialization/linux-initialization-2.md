@@ -1,25 +1,22 @@
-Kernel initialization. Part 2.
-================================================================================
+# Early interrupts handler
 
-Early interrupt and exception handling
---------------------------------------------------------------------------------
+## Early interrupt and exception handling
 
-In the previous [part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-1) we stopped before setting of early interrupt handlers. At this moment we are in the decompressed Linux kernel, we have basic [paging](https://en.wikipedia.org/wiki/Page_table) structure for early boot and our current goal is to finish early preparation before the main kernel code will start to work.
+In the previous [part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-1) we stopped before setting of early interrupt handlers. At this moment we are in the decompressed Linux kernel, we have basic [paging](https://en.wikipedia.org/wiki/Page\_table) structure for early boot and our current goal is to finish early preparation before the main kernel code will start to work.
 
 We already started to do this preparation in the previous [first](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-1) part of this [chapter](https://0xax.gitbook.io/linux-insides/summary/initialization). We continue in this part and will know more about interrupt and exception handling.
 
 Remember that we stopped before following function:
 
-```C
+```
 	idt_setup_early_handler();
 ```
 
 from the [arch/x86/kernel/head64.c](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/head64.c) source code file. But before we start to sort out this function, we need to know about interrupts and handlers.
 
-Some theory
---------------------------------------------------------------------------------
+## Some theory
 
-An interrupt is an event caused by software or hardware to the CPU. For example a user have pressed a key on keyboard. On interrupt, CPU stops the current task and transfer control to the special routine which is called - [interrupt handler](https://en.wikipedia.org/wiki/Interrupt_handler). An interrupt handler handles and interrupt and transfer control back to the previously stopped task. We can split interrupts on three types:
+An interrupt is an event caused by software or hardware to the CPU. For example a user have pressed a key on keyboard. On interrupt, CPU stops the current task and transfer control to the special routine which is called - [interrupt handler](https://en.wikipedia.org/wiki/Interrupt\_handler). An interrupt handler handles and interrupt and transfer control back to the previously stopped task. We can split interrupts on three types:
 
 * Software interrupts - when a software signals CPU that it needs kernel attention. These interrupts are generally used for system calls;
 * Hardware interrupts - when a hardware event happens, for example button is pressed on a keyboard;
@@ -27,7 +24,7 @@ An interrupt is an event caused by software or hardware to the CPU. For example 
 
 Every interrupt and exception is assigned a unique number which is called - `vector number`. `Vector number` can be any number from `0` to `255`. There is common practice to use first `32` vector numbers for exceptions, and vector numbers from `32` to `255` are used for user-defined interrupts.
 
-CPU uses vector number as an index in the `Interrupt Descriptor Table` (we will see description of it soon). CPU catches interrupts from the [APIC](http://en.wikipedia.org/wiki/Advanced_Programmable_Interrupt_Controller) or through its pins. Following table shows `0-31` exceptions:
+CPU uses vector number as an index in the `Interrupt Descriptor Table` (we will see description of it soon). CPU catches interrupts from the [APIC](http://en.wikipedia.org/wiki/Advanced\_Programmable\_Interrupt\_Controller) or through its pins. Following table shows `0-31` exceptions:
 
 ```
 ----------------------------------------------------------------------------------------------
@@ -113,14 +110,16 @@ To react on interrupt CPU uses special structure - Interrupt Descriptor Table or
 Where:
 
 * `Offset` - is offset to entry point of an interrupt handler;
-* `DPL` -    Descriptor Privilege Level;
-* `P` -      Segment Present flag;
+* `DPL` - Descriptor Privilege Level;
+* `P` - Segment Present flag;
 * `Segment selector` - a code segment selector in GDT or LDT (actually in linux, it must point to a valid descriptor in your GDT.)
-```C
+
+```
 #define __KERNEL_CS	(GDT_ENTRY_KERNEL_CS*8) // 0000 0000 0001 0000
 #define GDT_ENTRY_KERNEL_CS 2
 ```
-* `IST` -    provides ability to switch to a new stack for interrupts handling.
+
+* `IST` - provides ability to switch to a new stack for interrupts handling.
 
 And the last `Type` field describes type of the `IDT` entry. There are three different kinds of gates for interrupts:
 
@@ -138,18 +137,17 @@ Other bits in the interrupt descriptor is reserved and must be 0. Now let's look
 
 Now let's back to code.
 
-Fill and load IDT
---------------------------------------------------------------------------------
+## Fill and load IDT
 
 We stopped at the following function:
 
-```C
+```
 	idt_setup_early_handler();
 ```
 
 `idt_setup_early_handler` is defined in the [arch/x86/kernel/idt.c](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/idt.c) like the following:
 
-```C
+```
 void __init idt_setup_early_handler(void)
 {
 	int i;
@@ -166,11 +164,11 @@ where `NUM_EXCEPTION_VECTORS` expands to `32`. As we can see, We're filling only
 * Number of an interrupt or `vector number`;
 * Address of the idt handler.
 
-and inserts an interrupt gate to the `IDT` table which is represented by the `&idt_descr` array. 
+and inserts an interrupt gate to the `IDT` table which is represented by the `&idt_descr` array.
 
 The `early_idt_handler_array` array is declared in the [arch/x86/include/asm/segment.h](https://github.com/torvalds/linux/blob/master/arch/x86/include/asm/segment.h) header file and contains addresses of the first `32` exception handlers:
 
-```C
+```
 #define EARLY_IDT_HANDLER_SIZE   9
 #define NUM_EXCEPTION_VECTORS	32
 
@@ -181,7 +179,7 @@ The `early_idt_handler_array` is `288` bytes array which contains address of exc
 
 The `set_intr_gate` function is defined in the [arch/x86/kernel/idt.c](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/idt.c) source file and looks:
 
-```C
+```
 static void set_intr_gate(unsigned int n, const void *addr)
 {
 	struct idt_data data;
@@ -201,7 +199,7 @@ static void set_intr_gate(unsigned int n, const void *addr)
 
 First of all it checks that passed vector number is not greater than `255` with `BUG_ON` macro. We need to do this because we are limited to have up to `256` interrupts. After this, we fill the idt data with the given arguments and others, which will be passed to `idt_setup_from_table`. The `idt_setup_from_table` function is defined in the same file as the `set_intr_gate` function like the following:
 
-```C
+```
 static void
 idt_setup_from_table(gate_desc *idt, const struct idt_data *t, int size, bool sys)
 {
@@ -223,19 +221,19 @@ idt_setup_from_table(gate_desc *idt, const struct idt_data *t, int size, bool sy
 
 which fill temporary idt descriptor with the given arguments and others. And then we just copy it to the certain element of the `idt_table` array. `idt_table` is an array of idt entries:
 
-```C
+```
 gate_desc idt_table[IDT_ENTRIES] __page_aligned_bss;
 ```
 
 Now we are moving back to main loop code. After main loop finishes, we can load `Interrupt Descriptor table` with the call of the:
 
-```C
+```
 	load_idt((const struct desc_ptr *)&idt_descr);
 ```
 
 where `idt_descr` is:
 
-```C
+```
 struct desc_ptr idt_descr __ro_after_init = {
 	.size		= (IDT_ENTRIES * 2 * sizeof(unsigned long)) - 1,
 	.address	= (unsigned long) idt_table,
@@ -244,18 +242,17 @@ struct desc_ptr idt_descr __ro_after_init = {
 
 and `load_idt` just executes `lidt` instruction:
 
-```C
+```
 	asm volatile("lidt %0"::"m" (idt_descr));
 ```
 
 Okay, now we have filled and loaded `Interrupt Descriptor Table`, we know how the CPU acts during an interrupt. So now time to deal with interrupts handlers.
 
-Early interrupts handlers
---------------------------------------------------------------------------------
+## Early interrupts handlers
 
-As you can read above, we filled `IDT` with the address of the `early_idt_handler_array`. In this section, we are going to look into it in detail. We can find it in the [arch/x86/kernel/head_64.S](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/head_64.S) assembly file:
+As you can read above, we filled `IDT` with the address of the `early_idt_handler_array`. In this section, we are going to look into it in detail. We can find it in the [arch/x86/kernel/head\_64.S](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/head\_64.S) assembly file:
 
-```assembly
+```
 ENTRY(early_idt_handler_array)
 	i = 0
 	.rept NUM_EXCEPTION_VECTORS
@@ -308,22 +305,22 @@ As we may know, CPU pushes flag register, `CS` and `RIP` on the stack before cal
 |--------------------|
 ```
 
-Now let's look on the `early_idt_handler_common` implementation. It locates in the same [arch/x86/kernel/head_64.S](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/head_64.S) assembly file. First of all we increment `early_recursion_flag` to prevent recursion in the `early_idt_handler_common`:
+Now let's look on the `early_idt_handler_common` implementation. It locates in the same [arch/x86/kernel/head\_64.S](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/head\_64.S) assembly file. First of all we increment `early_recursion_flag` to prevent recursion in the `early_idt_handler_common`:
 
-```assembly
+```
 	incl early_recursion_flag(%rip)
 ```
 
 The `early_recursion_flag` is defined in the same assembly file as the `early_idt_handler_common` symbol as follows:
 
-```assembly
+```
 	early_recursion_flag:
 		.long 0
 ```
 
 Next we save general registers on the stack:
 
-```assembly
+```
 	pushq %rsi
 	movq 8(%rsp), %rsi
 	movq %rdi, 8(%rsp)
@@ -344,6 +341,7 @@ Next we save general registers on the stack:
 ```
 
 Okay, now the stack contains following data:
+
 ```
 High |-------------------------|
      | %rflags                 |
@@ -367,9 +365,9 @@ High |-------------------------|
 Low  |-------------------------|
 ```
 
-We need to do it to prevent wrong values of registers when we return from the interrupt handler. After this we check the vector number, and if it is `#PF` or [Page Fault](https://en.wikipedia.org/wiki/Page_fault), we put value from the `cr2` to the `rdi` register and call `early_make_pgtable` (we'll see it soon):
+We need to do it to prevent wrong values of registers when we return from the interrupt handler. After this we check the vector number, and if it is `#PF` or [Page Fault](https://en.wikipedia.org/wiki/Page\_fault), we put value from the `cr2` to the `rdi` register and call `early_make_pgtable` (we'll see it soon):
 
-```assembly
+```
 	cmpq $14,%rsi            /* Page fault? */
 	jnz 10f
 	GET_CR2_INTO(%rdi)
@@ -380,7 +378,7 @@ We need to do it to prevent wrong values of registers when we return from the in
 
 otherwise we call `early_fixup_exception` function by passing kernel stack pointer:
 
-```assembly
+```
 10:
 	movq %rsp,%rdi
 	call early_fixup_exception
@@ -388,7 +386,7 @@ otherwise we call `early_fixup_exception` function by passing kernel stack point
 
 We'll see the implementation of the `early_fixup_exception` function later.
 
-```assembly
+```
 20:
 	decl early_recursion_flag(%rip)
 	jmp restore_regs_and_return_to_kernel
@@ -398,14 +396,13 @@ After we decrement the `early_recursion_flag`, we restore registers which we sav
 
 It is the end of the interrupt handler. We will examine the page fault handling and the other exception handling in order.
 
-Page fault handling
---------------------------------------------------------------------------------
+## Page fault handling
 
 In the previous paragraph we saw the early interrupt handler which checks if the vector number is page fault and calls `early_make_pgtable` for building new page tables if it is. We need to have `#PF` handler in this step because there are plans to add ability to load kernel above `4G` and make access to `boot_params` structure above the 4G.
 
 You can find the implementation of `early_make_pgtable` in [arch/x86/kernel/head64.c](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/head64.c) and takes one parameter - the value of `cr2` register, which contains the address caused page fault. Let's look on it:
 
-```C
+```
 int __init early_make_pgtable(unsigned long address)
 {
 	unsigned long physaddr = address - __PAGE_OFFSET;
@@ -417,15 +414,15 @@ int __init early_make_pgtable(unsigned long address)
 }
 ```
 
-`__PAGE_OFFSET` is defined in the [arch/x86/include/asm/page_64_types.h](https://elixir.bootlin.com/linux/v3.10-rc1/source/arch/x86/include/asm/page_64_types.h#L33) header file, and the suffix `UL` forces the page offset to be a unsigned long data type.
+`__PAGE_OFFSET` is defined in the [arch/x86/include/asm/page\_64\_types.h](https://elixir.bootlin.com/linux/v3.10-rc1/source/arch/x86/include/asm/page\_64\_types.h#L33) header file, and the suffix `UL` forces the page offset to be a unsigned long data type.
 
-```C
+```
 #define __PAGE_OFFSET           _AC(0xffff880000000000, UL) 
 ```
 
-And the `_AC` macro is defined in the [include/uapi/linux/const.h](https://elixir.bootlin.com/linux/v3.10-rc1/source/include/uapi/linux/const.h#L16) header file: 
+And the `_AC` macro is defined in the [include/uapi/linux/const.h](https://elixir.bootlin.com/linux/v3.10-rc1/source/include/uapi/linux/const.h#L16) header file:
 
-```C
+```
 /* Some constant macros are used in both assembler and
  * C code.  Therefore we cannot annotate them always with
  * 'UL' and other type specifiers unilaterally.  We
@@ -442,7 +439,8 @@ And the `_AC` macro is defined in the [include/uapi/linux/const.h](https://elixi
 #define _AC(X,Y)	__AC(X,Y)
 #endif
 ```
-Where `__PAGE_OFFSET` expands to `0xffff888000000000`. But, why is it possible to translate a virtual address to a physical address by subtracting `__PAGE_OFFSET`?  The answer is in the [Documentation/x86/x86_64/mm.rst](https://elixir.bootlin.com/linux/v5.10-rc5/source/Documentation/x86/x86_64/mm.rst#L45) documentation: 
+
+Where `__PAGE_OFFSET` expands to `0xffff888000000000`. But, why is it possible to translate a virtual address to a physical address by subtracting `__PAGE_OFFSET`? The answer is in the [Documentation/x86/x86\_64/mm.rst](https://elixir.bootlin.com/linux/v5.10-rc5/source/Documentation/x86/x86\_64/mm.rst#L45) documentation:
 
 ```
 ...
@@ -454,7 +452,7 @@ As explained above, the virtual address space `ffff888000000000-ffffc87fffffffff
 
 Okay, let's get back to discussing `early_make_pgtable`. We initialize `pmd` and pass it to the `__early_make_pgtable` function along with `address`. The `__early_make_pgtable` function is defined in the same file as the `early_make_pgtable` function as follows:
 
-```C
+```
 int __init __early_make_pgtable(unsigned long address, pmdval_t pmd)
 {
 	unsigned long physaddr = address - __PAGE_OFFSET;
@@ -472,7 +470,7 @@ It starts from the definition of some variables which have `*val_t` types. All o
 
 After we made the check that we have no invalid address, we're getting the address of the Page Global Directory entry which contains base address of Page Upper Directory and put its value to the `pgd` variable:
 
-```C
+```
 again:
 	pgd_p = &early_top_pgt[pgd_index(address)].pgd;
 	pgd = *pgd_p;
@@ -480,7 +478,7 @@ again:
 
 And we check if `pgd` is presented. If it is, we assign the base address of the page upper directory table to `pud_p`:
 
-```C
+```
 	pud_p = (pudval_t *)((pgd & PTE_PFN_MASK) + __START_KERNEL_map - phys_base);
 ```
 
@@ -488,7 +486,7 @@ where `PTE_PFN_MASK` is a macro which mask lower `12` bits of `(pte|pmd|pud|pgd)
 
 If `pgd` is not presented, we check if `next_early_pgt` is not greater than `EARLY_DYNAMIC_PAGE_TABLES` which is `64` and present a fixed number of buffers to set up new page tables on demand. If `next_early_pgt` is greater than `EARLY_DYNAMIC_PAGE_TABLES` we reset page tables and start again from `again` label. If `next_early_pgt` is less than `EARLY_DYNAMIC_PAGE_TABLES`, we assign the next entry of `early_dynamic_pgts` to `pud_p` and fill whole entry of the page upper directory with `0`, then fill the page global directory entry with the base address and some access rights:
 
-```C
+```
 	if (next_early_pgt >= EARLY_DYNAMIC_PAGE_TABLES) {
 		reset_early_page_tables();
 		goto again;
@@ -501,7 +499,7 @@ If `pgd` is not presented, we check if `next_early_pgt` is not greater than `EAR
 
 And we fix `pud_p` to point to correct entry and assign its value to `pud` with the following:
 
-```C
+```
 	pud_p += pud_index(address);
 	pud = *pud_p;
 ```
@@ -510,18 +508,17 @@ And then we do the same routine as above, but to the page middle directory.
 
 In the end we assign the given `pmd` which is passed by the `early_make_pgtable` function to the certain entry of page middle directory which maps kernel text+data virtual addresses:
 
-```C
+```
 	pmd_p[pmd_index(address)] = pmd;
 ```
 
 After page fault handler finished its work, as a result, `early_top_pgt` contains entries which point to the valid addresses.
 
-Other exception handling
---------------------------------------------------------------------------------
+## Other exception handling
 
 In early interrupt phase, exceptions other than page fault are handled by `early_fixup_exception` function which is defined in [arch/x86/mm/extable.c](https://github.com/torvalds/linux/blob/master/arch/x86/mm/extable.c) and takes two parameters - pointer to kernel stack which consists of saved registers and vector number:
 
-```C
+```
 void __init early_fixup_exception(struct pt_regs *regs, int trapnr)
 {
 	...
@@ -532,7 +529,7 @@ void __init early_fixup_exception(struct pt_regs *regs, int trapnr)
 
 First of all we need to make some checks as the following:
 
-```C
+```
 	if (trapnr == X86_TRAP_NMI)
 		return;
 
@@ -543,18 +540,18 @@ First of all we need to make some checks as the following:
 		goto fail;
 ```
 
-Here we just ignore [NMI](https://en.wikipedia.org/wiki/Non-maskable_interrupt) and make sure that we are not in recursive situation.
+Here we just ignore [NMI](https://en.wikipedia.org/wiki/Non-maskable\_interrupt) and make sure that we are not in recursive situation.
 
 After that, we get into:
 
-```C
+```
 	if (fixup_exception(regs, trapnr))
 		return;
 ```
 
 The `fixup_exception` function finds the actual handler and call it. It is defined in the same file as `early_fixup_exception` function as the following:
 
-```C
+```
 int fixup_exception(struct pt_regs *regs, int trapnr)
 {
 	const struct exception_table_entry *e;
@@ -571,7 +568,7 @@ int fixup_exception(struct pt_regs *regs, int trapnr)
 
 The `ex_handler_t` is a type of function pointer, which is defined like:
 
-```C
+```
 typedef bool (*ex_handler_t)(const struct exception_table_entry *,
                             struct pt_regs *, int)
 ```
@@ -580,14 +577,14 @@ The `search_exception_tables` function looks up the given address in the excepti
 
 Let's get back to the `early_fixup_exception` function, the next step is:
 
-```C
+```
 	if (fixup_bug(regs, trapnr))
 		return;
 ```
 
 The `fixup_bug` function is defined in [arch/x86/kernel/traps.c](https://github.com/torvalds/linux/blob/master/arch/x86/kernel/traps.c). Let's have a look on the function implementation:
 
-```C
+```
 int fixup_bug(struct pt_regs *regs, int trapnr)
 {
 	if (trapnr != X86_TRAP_UD)
@@ -607,22 +604,20 @@ int fixup_bug(struct pt_regs *regs, int trapnr)
 }
 ```
 
-All what this function does is just returns `1` if the exception is generated because `#UD` (or [Invalid Opcode](https://wiki.osdev.org/Exceptions#Invalid_Opcode)) occurred and the `report_bug` function returns `BUG_TRAP_TYPE_WARN`, otherwise returns `0`.
+All what this function does is just returns `1` if the exception is generated because `#UD` (or [Invalid Opcode](https://wiki.osdev.org/Exceptions#Invalid\_Opcode)) occurred and the `report_bug` function returns `BUG_TRAP_TYPE_WARN`, otherwise returns `0`.
 
-Conclusion
---------------------------------------------------------------------------------
+## Conclusion
 
 This is the end of the second part about linux kernel insides. If you have questions or suggestions, ping me in twitter [0xAX](https://twitter.com/0xAX), drop me [email](mailto:anotherworldofworld@gmail.com) or just create [issue](https://github.com/0xAX/linux-insides/issues/new). In the next part we will see all steps before kernel entry point - `start_kernel` function.
 
-**Please note that English is not my first language and I am really sorry for any inconvenience. If you found any mistakes please send me PR to [linux-insides](https://github.com/0xAX/linux-insides).**
+**Please note that English is not my first language and I am really sorry for any inconvenience. If you found any mistakes please send me PR to** [**linux-insides**](https://github.com/0xAX/linux-insides)**.**
 
-Links
---------------------------------------------------------------------------------
+## Links
 
 * [GNU assembly .rept](https://sourceware.org/binutils/docs-2.23/as/Rept.html)
-* [APIC](http://en.wikipedia.org/wiki/Advanced_Programmable_Interrupt_Controller)
-* [NMI](http://en.wikipedia.org/wiki/Non-maskable_interrupt)
-* [Page table](https://en.wikipedia.org/wiki/Page_table)
-* [Interrupt handler](https://en.wikipedia.org/wiki/Interrupt_handler)
-* [Page Fault](https://en.wikipedia.org/wiki/Page_fault),
+* [APIC](http://en.wikipedia.org/wiki/Advanced\_Programmable\_Interrupt\_Controller)
+* [NMI](http://en.wikipedia.org/wiki/Non-maskable\_interrupt)
+* [Page table](https://en.wikipedia.org/wiki/Page\_table)
+* [Interrupt handler](https://en.wikipedia.org/wiki/Interrupt\_handler)
+* [Page Fault](https://en.wikipedia.org/wiki/Page\_fault),
 * [Previous part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-1)

@@ -1,21 +1,19 @@
-Timers and time management in the Linux kernel. Part 2.
-================================================================================
+# Clocksource framework
 
-Introduction to the `clocksource` framework
---------------------------------------------------------------------------------
+## Introduction to the `clocksource` framework
 
 The previous [part](https://0xax.gitbook.io/linux-insides/summary/timers/linux-timers-1) was the first part in the current [chapter](https://0xax.gitbook.io/linux-insides/summary/timers/) that describes timers and time management related stuff in the Linux kernel. We got acquainted with two concepts in the previous part:
 
-  * `jiffies`
-  * `clocksource`
+* `jiffies`
+* `clocksource`
 
-The first is the global variable that is defined in the [include/linux/jiffies.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/jiffies.h) header file and represents the counter that is increased during each timer interrupt. So if we can access this global variable and we know the timer interrupt rate we can convert `jiffies` to the human time units. As we already know the timer interrupt rate represented by the compile-time constant that is called `HZ` in the Linux kernel. The value of `HZ` is equal to the value of the `CONFIG_HZ` kernel configuration option and if we will look into the [arch/x86/configs/x86_64_defconfig](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/configs/x86_64_defconfig) kernel configuration file, we will see that:
+The first is the global variable that is defined in the [include/linux/jiffies.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/jiffies.h) header file and represents the counter that is increased during each timer interrupt. So if we can access this global variable and we know the timer interrupt rate we can convert `jiffies` to the human time units. As we already know the timer interrupt rate represented by the compile-time constant that is called `HZ` in the Linux kernel. The value of `HZ` is equal to the value of the `CONFIG_HZ` kernel configuration option and if we will look into the [arch/x86/configs/x86\_64\_defconfig](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/configs/x86\_64\_defconfig) kernel configuration file, we will see that:
 
 ```
 CONFIG_HZ_1000=y
 ```
 
-kernel configuration option is set. This means that value of `CONFIG_HZ` will be `1000` by default for the [x86_64](https://en.wikipedia.org/wiki/X86-64) architecture. So, if we divide the value of `jiffies` by the value of `HZ`:
+kernel configuration option is set. This means that value of `CONFIG_HZ` will be `1000` by default for the [x86\_64](https://en.wikipedia.org/wiki/X86-64) architecture. So, if we divide the value of `jiffies` by the value of `HZ`:
 
 ```
 jiffies / HZ
@@ -23,7 +21,7 @@ jiffies / HZ
 
 we will get the amount of seconds that elapsed since the beginning of the moment the Linux kernel started to work or in other words we will get the system [uptime](https://en.wikipedia.org/wiki/Uptime). Since `HZ` represents the amount of timer interrupts in a second, we can set a value for some time in the future. For example:
 
-```C
+```
 /* one minute from now */
 unsigned long later = jiffies + 60*HZ;
 
@@ -33,7 +31,7 @@ unsigned long later = jiffies + 5*60*HZ;
 
 This is a very common practice in the Linux kernel. For example, if you will look into the [arch/x86/kernel/smpboot.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/kernel/smpboot.c) source code file, you will find the `do_boot_cpu` function. This function boots all processors besides bootstrap processor. You can find a snippet that waits ten seconds for a response from the application processor:
 
-```C
+```
 if (!boot_error) {
 	timeout = jiffies + 10*HZ;
 	while (time_before(jiffies, timeout)) {
@@ -50,9 +48,9 @@ if (!boot_error) {
 
 We assign `jiffies + 10*HZ` value to the `timeout` variable here. As I think you already understood, this means a ten seconds timeout. After this we are entering a loop where we use the `time_before` macro to compare the current `jiffies` value and our timeout.
 
-Or for example if we look into the [sound/isa/sscape.c](https://github.com/torvalds/linux/blob/master/sound/isa/sscape.c) source code file which represents the driver for the [Ensoniq Soundscape Elite](https://en.wikipedia.org/wiki/Ensoniq_Soundscape_Elite) sound card, we will see the `obp_startup_ack` function that waits up to a given timeout for the On-Board Processor to return its start-up acknowledgement sequence:
+Or for example if we look into the [sound/isa/sscape.c](https://github.com/torvalds/linux/blob/master/sound/isa/sscape.c) source code file which represents the driver for the [Ensoniq Soundscape Elite](https://en.wikipedia.org/wiki/Ensoniq\_Soundscape\_Elite) sound card, we will see the `obp_startup_ack` function that waits up to a given timeout for the On-Board Processor to return its start-up acknowledgement sequence:
 
-```C
+```
 static int obp_startup_ack(struct soundscape *s, unsigned timeout)
 {
 	unsigned long end_time = jiffies + msecs_to_jiffies(timeout);
@@ -76,12 +74,11 @@ static int obp_startup_ack(struct soundscape *s, unsigned timeout)
 
 As you can see, the `jiffies` variable is very widely used in the Linux kernel [code](http://lxr.free-electrons.com/ident?i=jiffies). As I already wrote, we met yet another new time management related concept in the previous part - `clocksource`. We have only seen a short description of this concept and the API for a `clocksource` registration. Let's take a closer look in this part.
 
-Introduction to `clocksource`
---------------------------------------------------------------------------------
+## Introduction to `clocksource`
 
-The `clocksource` concept represents the generic API for clock sources management in the Linux kernel. Why do we need a separate framework for this? Let's go back to the beginning. The `time` concept is the fundamental concept in the Linux kernel and other operating system kernels. And the timekeeping is one of the necessities to use this concept. For example Linux kernel must know and update the time elapsed since system startup, it must determine how long the current process has been running for every processor and many many more. Where the Linux kernel can get information about time? First of all it is Real Time Clock or [RTC](https://en.wikipedia.org/wiki/Real-time_clock) that represents by the a nonvolatile device. You can find a set of architecture-independent real time clock drivers in the Linux kernel in the [drivers/rtc](https://github.com/torvalds/linux/tree/master/drivers/rtc) directory. Besides this, each architecture can provide a driver for the architecture-dependent real time clock, for example - `CMOS/RTC` - [arch/x86/kernel/rtc.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/kernel/rtc.c) for the [x86](https://en.wikipedia.org/wiki/X86) architecture. The second is system timer - timer that excites [interrupts](https://en.wikipedia.org/wiki/Interrupt) with a periodic rate. For example, for [IBM PC](https://en.wikipedia.org/wiki/IBM_Personal_Computer) compatibles it was - [programmable interval timer](https://en.wikipedia.org/wiki/Programmable_interval_timer).
+The `clocksource` concept represents the generic API for clock sources management in the Linux kernel. Why do we need a separate framework for this? Let's go back to the beginning. The `time` concept is the fundamental concept in the Linux kernel and other operating system kernels. And the timekeeping is one of the necessities to use this concept. For example Linux kernel must know and update the time elapsed since system startup, it must determine how long the current process has been running for every processor and many many more. Where the Linux kernel can get information about time? First of all it is Real Time Clock or [RTC](https://en.wikipedia.org/wiki/Real-time\_clock) that represents by the a nonvolatile device. You can find a set of architecture-independent real time clock drivers in the Linux kernel in the [drivers/rtc](https://github.com/torvalds/linux/tree/master/drivers/rtc) directory. Besides this, each architecture can provide a driver for the architecture-dependent real time clock, for example - `CMOS/RTC` - [arch/x86/kernel/rtc.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/kernel/rtc.c) for the [x86](https://en.wikipedia.org/wiki/X86) architecture. The second is system timer - timer that excites [interrupts](https://en.wikipedia.org/wiki/Interrupt) with a periodic rate. For example, for [IBM PC](https://en.wikipedia.org/wiki/IBM\_Personal\_Computer) compatibles it was - [programmable interval timer](https://en.wikipedia.org/wiki/Programmable\_interval\_timer).
 
-We already know that for timekeeping purposes we can use `jiffies` in the Linux kernel. The `jiffies` can be considered as read only global variable which is updated with `HZ` frequency. We know that the `HZ` is a compile-time kernel parameter whose reasonable range is from `100` to `1000` [Hz](https://en.wikipedia.org/wiki/Hertz). So, it is guaranteed to have an interface for time measurement  with `1` - `10` milliseconds resolution. Besides standard `jiffies`, we saw the `refined_jiffies` clock source in the previous part that is based on the `i8253/i8254` [programmable interval timer](https://en.wikipedia.org/wiki/Programmable_interval_timer) tick rate which is almost `1193182` hertz. So we can get something about `1` microsecond resolution with the `refined_jiffies`. In this time, [nanoseconds](https://en.wikipedia.org/wiki/Nanosecond) are the favorite choice for the time value units of the given `clocksource`.
+We already know that for timekeeping purposes we can use `jiffies` in the Linux kernel. The `jiffies` can be considered as read only global variable which is updated with `HZ` frequency. We know that the `HZ` is a compile-time kernel parameter whose reasonable range is from `100` to `1000` [Hz](https://en.wikipedia.org/wiki/Hertz). So, it is guaranteed to have an interface for time measurement with `1` - `10` milliseconds resolution. Besides standard `jiffies`, we saw the `refined_jiffies` clock source in the previous part that is based on the `i8253/i8254` [programmable interval timer](https://en.wikipedia.org/wiki/Programmable\_interval\_timer) tick rate which is almost `1193182` hertz. So we can get something about `1` microsecond resolution with the `refined_jiffies`. In this time, [nanoseconds](https://en.wikipedia.org/wiki/Nanosecond) are the favorite choice for the time value units of the given `clocksource`.
 
 The availability of more precise techniques for time intervals measurement is hardware-dependent. We just knew a little about `x86` dependent timers hardware. But each architecture provides own timers hardware. Earlier each architecture had own implementation for this purpose. Solution of this problem is an abstraction layer and associated API in a common code framework for managing various clock sources and independent of the timer interrupt. This common code framework became - `clocksource` framework.
 
@@ -89,12 +86,11 @@ Generic timeofday and `clocksource` management framework moved a lot of timekeep
 
 Within this framework, each clock source is required to maintain a representation of time as a monotonically increasing value. As we can see in the Linux kernel code, nanoseconds are the favorite choice for the time value units of a clock source in this time. One of the main point of the clock source framework is to allow a user to select clock source among a range of available hardware devices supporting clock functions when configuring the system and selecting, accessing and scaling different clock sources.
 
-The `clocksource` structure
---------------------------------------------------------------------------------
+## The `clocksource` structure
 
 The fundamental of the `clocksource` framework is the `clocksource` structure that defined in the [include/linux/clocksource.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/clocksource.h) header file. We already saw some fields that are provided by the `clocksource` structure in the previous [part](https://0xax.gitbook.io/linux-insides/summary/timers/linux-timers-1). Let's look on the full definition of this structure and try to describe all of its fields:
 
-```C
+```
 struct clocksource {
 	cycle_t (*read)(struct clocksource *cs);
 	cycle_t mask;
@@ -125,7 +121,7 @@ struct clocksource {
 
 We already saw the first field of the `clocksource` structure in the previous part - it is pointer to the `read` function that returns best counter selected by the clocksource framework. For example we use `jiffies_read` function to read `jiffies` value:
 
-```C
+```
 static struct clocksource clocksource_jiffies = {
 	...
 	.read		= jiffies_read,
@@ -135,7 +131,7 @@ static struct clocksource clocksource_jiffies = {
 
 where `jiffies_read` just returns:
 
-```C
+```
 static cycle_t jiffies_read(struct clocksource *cs)
 {
 	return (cycle_t) jiffies;
@@ -144,7 +140,7 @@ static cycle_t jiffies_read(struct clocksource *cs)
 
 Or the `read_tsc` function:
 
-```C
+```
 static struct clocksource clocksource_tsc = {
 	...
     .read                   = read_tsc,
@@ -152,7 +148,7 @@ static struct clocksource clocksource_tsc = {
 };
 ```
 
-for the [time stamp counter](https://en.wikipedia.org/wiki/Time_Stamp_Counter) reading.
+for the [time stamp counter](https://en.wikipedia.org/wiki/Time\_Stamp\_Counter) reading.
 
 The next field is `mask` that allows to ensure that subtraction between counters values from non `64 bit` counters do not need special overflow logic. After the `mask` field, we can see two fields: `mult` and `shift`. These are the fields that are base of mathematical functions that are provide ability to convert time values specific to each clock source. In other words these two fields help us to convert an abstract machine time units of a counter to nanoseconds.
 
@@ -160,7 +156,7 @@ After these two fields we can see the `64` bits `max_idle_ns` field represents m
 
 The next field after the `max_idle_ns` is the `maxadj` field which is the maximum adjustment value to `mult`. The main formula by which we convert cycles to the nanoseconds:
 
-```C
+```
 ((u64) cycles * mult) >> shift;
 ```
 
@@ -171,35 +167,34 @@ is not `100%` accurate. Instead the number is taken as close as possible to a na
 * `suspend` - suspend function for the clocksource;
 * `resume` - resume function for the clocksource;
 
-The next field is the `max_cycles` and as we can understand from its name, this field represents maximum cycle value before potential overflow. And the last field is `owner` represents reference to a kernel [module](https://en.wikipedia.org/wiki/Loadable_kernel_module) that is owner of a clocksource. This is all. We just went through all the standard fields of the `clocksource` structure. But you can noted that we missed some fields of the `clocksource` structure. We can divide all of missed field on two types: Fields of the first type are already known for us. For example, they are `name` field that represents name of a `clocksource`, the `rating` field that helps to the Linux kernel to select the best clocksource and etc. The second type, fields which are dependent from the different Linux kernel configuration options. Let's look on these fields.
+The next field is the `max_cycles` and as we can understand from its name, this field represents maximum cycle value before potential overflow. And the last field is `owner` represents reference to a kernel [module](https://en.wikipedia.org/wiki/Loadable\_kernel\_module) that is owner of a clocksource. This is all. We just went through all the standard fields of the `clocksource` structure. But you can noted that we missed some fields of the `clocksource` structure. We can divide all of missed field on two types: Fields of the first type are already known for us. For example, they are `name` field that represents name of a `clocksource`, the `rating` field that helps to the Linux kernel to select the best clocksource and etc. The second type, fields which are dependent from the different Linux kernel configuration options. Let's look on these fields.
 
 The first field is the `archdata`. This field has `arch_clocksource_data` type and depends on the `CONFIG_ARCH_CLOCKSOURCE_DATA` kernel configuration option. This field is actual only for the [x86](https://en.wikipedia.org/wiki/X86) and [IA64](https://en.wikipedia.org/wiki/IA-64) architectures for this moment. And again, as we can understand from the field's name, it represents architecture-specific data for a clock source. For example, it represents `vDSO` clock mode:
 
-```C
+```
 struct arch_clocksource_data {
     int vclock_mode;
 };
 ```
- 
+
 for the `x86` architectures. Where the `vDSO` clock mode can be one of the:
 
-```C
+```
 #define VCLOCK_NONE 0
 #define VCLOCK_TSC  1
 #define VCLOCK_HPET 2
 #define VCLOCK_PVCLOCK 3
 ```
 
-The last three fields are `wd_list`, `cs_last` and the `wd_last` depends on the `CONFIG_CLOCKSOURCE_WATCHDOG` kernel configuration option. First of all let's try to understand what is it `watchdog`. In a simple words, watchdog is a timer that is used for detection of the computer malfunctions and recovering from it. All of these three fields contain watchdog related data that is used by the `clocksource` framework. If we will grep the Linux kernel source code, we will see that only [arch/x86/KConfig](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/Kconfig#L54) kernel configuration file contains the `CONFIG_CLOCKSOURCE_WATCHDOG` kernel configuration option. So, why do `x86` and `x86_64` need in [watchdog](https://en.wikipedia.org/wiki/Watchdog_timer)? You already may know that all `x86` processors has special 64-bit register - [time stamp counter](https://en.wikipedia.org/wiki/Time_Stamp_Counter). This register contains number of [cycles](https://en.wikipedia.org/wiki/Clock_rate) since the reset. Sometimes the time stamp counter needs to be verified against another clock source. We will not see initialization of the `watchdog` timer in this part, before this we must learn more about timers.
+The last three fields are `wd_list`, `cs_last` and the `wd_last` depends on the `CONFIG_CLOCKSOURCE_WATCHDOG` kernel configuration option. First of all let's try to understand what is it `watchdog`. In a simple words, watchdog is a timer that is used for detection of the computer malfunctions and recovering from it. All of these three fields contain watchdog related data that is used by the `clocksource` framework. If we will grep the Linux kernel source code, we will see that only [arch/x86/KConfig](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/Kconfig#L54) kernel configuration file contains the `CONFIG_CLOCKSOURCE_WATCHDOG` kernel configuration option. So, why do `x86` and `x86_64` need in [watchdog](https://en.wikipedia.org/wiki/Watchdog\_timer)? You already may know that all `x86` processors has special 64-bit register - [time stamp counter](https://en.wikipedia.org/wiki/Time\_Stamp\_Counter). This register contains number of [cycles](https://en.wikipedia.org/wiki/Clock\_rate) since the reset. Sometimes the time stamp counter needs to be verified against another clock source. We will not see initialization of the `watchdog` timer in this part, before this we must learn more about timers.
 
 That's all. From this moment we know all fields of the `clocksource` structure. This knowledge will help us to learn insides of the `clocksource` framework.
 
-New `clocksource` registration
---------------------------------------------------------------------------------
+## New `clocksource` registration
 
 We saw only one function from the `clocksource` framework in the previous [part](https://0xax.gitbook.io/linux-insides/summary/timers/linux-timers-1). This function was - `__clocksource_register`. This function defined in the [include/linux/clocksource.h](https://github.com/torvalds/linux/tree/master/include/linux/clocksource.h) header file and as we can understand from the function's name, main point of this function is to register new clocksource. If we will look on the implementation of the `__clocksource_register` function, we will see that it just makes call of the `__clocksource_register_scale` function and returns its result:
 
-```C
+```
 static inline int __clocksource_register(struct clocksource *cs)
 {
 	return __clocksource_register_scale(cs, 1, 0);
@@ -208,7 +203,7 @@ static inline int __clocksource_register(struct clocksource *cs)
 
 Before we will see implementation of the `__clocksource_register_scale` function, we can see that `clocksource` provides additional API for a new clock source registration:
 
-```C
+```
 static inline int clocksource_register_hz(struct clocksource *cs, u32 hz)
 {
         return __clocksource_register_scale(cs, 1, hz);
@@ -228,7 +223,7 @@ And all of these functions do the same. They return value of the `__clocksource_
 
 Now let's look on the implementation of the `__clocksource_register_scale` function:
 
-```C
+```
 int __clocksource_register_scale(struct clocksource *cs, u32 scale, u32 freq)
 {
         __clocksource_update_freq_scale(cs, scale, freq);
@@ -245,7 +240,7 @@ First of all we can see that the `__clocksource_register_scale` function starts 
 
 So in the start of the `__clocksource_update_freq_scale` function we check the value of the `frequency` parameter and if is not zero we need to calculate `mult` and `shift` for the given clock source. Let's look on the `mult` and `shift` calculation:
 
-```C
+```
 void __clocksource_update_freq_scale(struct clocksource *cs, u32 scale, u32 freq)
 {
         u64 sec;
@@ -273,7 +268,7 @@ Here we can see calculation of the maximum number of seconds which we can run be
 
 After we have got maximum number of seconds, we check this value and set it to `1` or `600` depends on the result at the next step. These values is maximum sleeping time for a clocksource in seconds. In the next step we can see call of the `clocks_calc_mult_shift`. Main point of this function is calculation of the `mult` and `shift` values for a given clock source. In the end of the `__clocksource_update_freq_scale` function we check that just calculated `mult` value of a given clock source will not cause overflow after adjustment, update the `max_idle_ns` and `max_cycles` values of a given clock source with the maximum nanoseconds that can be converted to a clock source counter and print result to the kernel buffer:
 
-```C
+```
 pr_info("%s: mask: 0x%llx max_cycles: 0x%llx, max_idle_ns: %lld ns\n",
 	cs->name, cs->mask, cs->max_cycles, cs->max_idle_ns);
 ```
@@ -291,7 +286,7 @@ $ dmesg | grep "clocksource:"
 
 After the `__clocksource_update_freq_scale` function will finish its work, we can return back to the `__clocksource_register_scale` function that will register new clock source. We can see the call of the following three functions:
 
-```C
+```
 mutex_lock(&clocksource_mutex);
 clocksource_enqueue(cs);
 clocksource_enqueue_watchdog(cs);
@@ -299,11 +294,11 @@ clocksource_select();
 mutex_unlock(&clocksource_mutex);
 ```
 
-Note that before the first will be called, we lock the `clocksource_mutex` [mutex](https://en.wikipedia.org/wiki/Mutual_exclusion). The point of the `clocksource_mutex` mutex is to protect `curr_clocksource` variable which represents currently selected `clocksource` and `clocksource_list` variable which represents list that contains registered `clocksources`. Now, let's look on these three functions.
+Note that before the first will be called, we lock the `clocksource_mutex` [mutex](https://en.wikipedia.org/wiki/Mutual\_exclusion). The point of the `clocksource_mutex` mutex is to protect `curr_clocksource` variable which represents currently selected `clocksource` and `clocksource_list` variable which represents list that contains registered `clocksources`. Now, let's look on these three functions.
 
 The first `clocksource_enqueue` function and other two defined in the same source code [file](https://github.com/torvalds/linux/tree/master/kernel/time/clocksource.c). We go through all already registered `clocksources` or in other words we go through all elements of the `clocksource_list` and tries to find best place for a given `clocksource`:
 
-```C
+```
 /*
  * Enqueue the clocksource sorted by rating
  */
@@ -322,20 +317,20 @@ static void clocksource_enqueue(struct clocksource *cs)
 }
 ```
 
-In the end we just insert new clocksource to the `clocksource_list`. The second function - `clocksource_enqueue_watchdog` does almost the same that previous function, but it inserts new clock source to the `wd_list` depends on flags of a clock source and starts new [watchdog](https://en.wikipedia.org/wiki/Watchdog_timer) timer. As I already wrote, we will not consider `watchdog` related stuff in this part but will do it in next parts.
+In the end we just insert new clocksource to the `clocksource_list`. The second function - `clocksource_enqueue_watchdog` does almost the same that previous function, but it inserts new clock source to the `wd_list` depends on flags of a clock source and starts new [watchdog](https://en.wikipedia.org/wiki/Watchdog\_timer) timer. As I already wrote, we will not consider `watchdog` related stuff in this part but will do it in next parts.
 
 The last function is the `clocksource_select`. As we can understand from the function's name, main point of this function - select the best `clocksource` from registered clocksources. This function consists only from the call of the function helper:
 
-```C
+```
 static void clocksource_select(void)
 {
 	return __clocksource_select(false);
 }
 ```
 
-Note that the `__clocksource_select` function takes one parameter (`false` in our case). This [bool](https://en.wikipedia.org/wiki/Boolean_data_type) parameter shows how to traverse the `clocksource_list`. In our case we pass `false` that is meant that we will go through all entries of the `clocksource_list`. We already know that `clocksource` with the best rating will the first in the `clocksource_list` after the call of the `clocksource_enqueue` function, so we can easily get it from this list. After we found a clock source with the best rating, we switch to it:
+Note that the `__clocksource_select` function takes one parameter (`false` in our case). This [bool](https://en.wikipedia.org/wiki/Boolean\_data\_type) parameter shows how to traverse the `clocksource_list`. In our case we pass `false` that is meant that we will go through all entries of the `clocksource_list`. We already know that `clocksource` with the best rating will the first in the `clocksource_list` after the call of the `clocksource_enqueue` function, so we can easily get it from this list. After we found a clock source with the best rating, we switch to it:
 
-```C
+```
 if (curr_clocksource != best && !timekeeping_notify(best)) {
 	pr_info("Switched to clocksource %s\n", best->name);
 	curr_clocksource = best;
@@ -354,7 +349,7 @@ Note that we can see two clock sources in the `dmesg` output (`hpet` and `tsc` i
 
 If we will look on the bottom of the [kernel/time/clocksource.c](https://github.com/torvalds/linux/tree/master/kernel/time/clocksource.c) source code file, we will see that it has [sysfs](https://en.wikipedia.org/wiki/Sysfs) interface. Main initialization occurs in the `init_clocksource_sysfs` function which will be called during device `initcalls`. Let's look on the implementation of the `init_clocksource_sysfs` function:
 
-```C
+```
 static struct bus_type clocksource_subsys = {
 	.name = "clocksource",
 	.dev_name = "clocksource",
@@ -391,7 +386,7 @@ $ pwd
 
 After this step, we can see registration of the `device_clocksource` device which is represented by the following structure:
 
-```C
+```
 static struct device device_clocksource = {
 	.id	= 0,
 	.bus	= &clocksource_subsys,
@@ -424,34 +419,32 @@ In the previous part, we saw API for the registration of the `jiffies` clock sou
 
 That's all.
 
-Conclusion
---------------------------------------------------------------------------------
+## Conclusion
 
 This is the end of the second part of the chapter that describes timers and timer management related stuff in the Linux kernel. In the previous part got acquainted with the following two concepts: `jiffies` and `clocksource`. In this part we saw some examples of the `jiffies` usage and knew more details about the `clocksource` concept.
 
 If you have questions or suggestions, feel free to ping me in twitter [0xAX](https://twitter.com/0xAX), drop me [email](mailto:anotherworldofworld@gmail.com) or just create [issue](https://github.com/0xAX/linux-insides/issues/new).
 
-**Please note that English is not my first language and I am really sorry for any inconvenience. If you found any mistakes please send me PR to [linux-insides](https://github.com/0xAX/linux-insides).**
+**Please note that English is not my first language and I am really sorry for any inconvenience. If you found any mistakes please send me PR to** [**linux-insides**](https://github.com/0xAX/linux-insides)**.**
 
-Links
--------------------------------------------------------------------------------
+## Links
 
 * [x86](https://en.wikipedia.org/wiki/X86)
-* [x86_64](https://en.wikipedia.org/wiki/X86-64)
+* [x86\_64](https://en.wikipedia.org/wiki/X86-64)
 * [uptime](https://en.wikipedia.org/wiki/Uptime)
-* [Ensoniq Soundscape Elite](https://en.wikipedia.org/wiki/Ensoniq_Soundscape_Elite)
-* [RTC](https://en.wikipedia.org/wiki/Real-time_clock)
+* [Ensoniq Soundscape Elite](https://en.wikipedia.org/wiki/Ensoniq\_Soundscape\_Elite)
+* [RTC](https://en.wikipedia.org/wiki/Real-time\_clock)
 * [interrupts](https://en.wikipedia.org/wiki/Interrupt)
-* [IBM PC](https://en.wikipedia.org/wiki/IBM_Personal_Computer)
-* [programmable interval timer](https://en.wikipedia.org/wiki/Programmable_interval_timer)
+* [IBM PC](https://en.wikipedia.org/wiki/IBM\_Personal\_Computer)
+* [programmable interval timer](https://en.wikipedia.org/wiki/Programmable\_interval\_timer)
 * [Hz](https://en.wikipedia.org/wiki/Hertz)
 * [nanoseconds](https://en.wikipedia.org/wiki/Nanosecond)
 * [dmesg](https://en.wikipedia.org/wiki/Dmesg)
-* [time stamp counter](https://en.wikipedia.org/wiki/Time_Stamp_Counter)
-* [loadable kernel module](https://en.wikipedia.org/wiki/Loadable_kernel_module)
+* [time stamp counter](https://en.wikipedia.org/wiki/Time\_Stamp\_Counter)
+* [loadable kernel module](https://en.wikipedia.org/wiki/Loadable\_kernel\_module)
 * [IA64](https://en.wikipedia.org/wiki/IA-64)
-* [watchdog](https://en.wikipedia.org/wiki/Watchdog_timer)
-* [clock rate](https://en.wikipedia.org/wiki/Clock_rate)
-* [mutex](https://en.wikipedia.org/wiki/Mutual_exclusion)
+* [watchdog](https://en.wikipedia.org/wiki/Watchdog\_timer)
+* [clock rate](https://en.wikipedia.org/wiki/Clock\_rate)
+* [mutex](https://en.wikipedia.org/wiki/Mutual\_exclusion)
 * [sysfs](https://en.wikipedia.org/wiki/Sysfs)
 * [previous part](https://0xax.gitbook.io/linux-insides/summary/timers/linux-timers-1)

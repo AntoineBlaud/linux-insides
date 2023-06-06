@@ -1,16 +1,13 @@
-Data Structures in the Linux Kernel
-================================================================================
+# Radix tree
 
-Radix tree
---------------------------------------------------------------------------------
+## Radix tree
 
-As you already know linux kernel provides many different libraries and functions which implement different data structures and algorithms. In this part we will consider one of these data structures - [Radix tree](http://en.wikipedia.org/wiki/Radix_tree). There are two files which are related to `radix tree` implementation and API in the linux kernel:
+As you already know linux kernel provides many different libraries and functions which implement different data structures and algorithms. In this part we will consider one of these data structures - [Radix tree](http://en.wikipedia.org/wiki/Radix\_tree). There are two files which are related to `radix tree` implementation and API in the linux kernel:
 
 * [include/linux/radix-tree.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/radix-tree.h)
 * [lib/radix-tree.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/lib/radix-tree.c)
 
 Lets talk about what a `radix tree` is. Radix tree is a `compressed trie` where a [trie](http://en.wikipedia.org/wiki/Trie) is a data structure which implements an interface of an associative array and allows to store values as `key-value`. The keys are usually strings, but any data type can be used. A trie is different from an `n-tree` because of its nodes. Nodes of a trie do not store keys; instead, a node of a trie stores single character labels. The key which is related to a given node is derived by traversing from the root of the tree to this node. For example:
-
 
 ```
                +-----------+
@@ -45,7 +42,7 @@ So in this example, we can see the `trie` with keys, `go` and `cat`. The compres
 
 Radix tree in linux kernel is the data structure which maps values to integer keys. It is represented by the following structures from the file [include/linux/radix-tree.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/radix-tree.h):
 
-```C
+```
 struct radix_tree_root {
          unsigned int            height;
          gfp_t                   gfp_mask;
@@ -55,23 +52,23 @@ struct radix_tree_root {
 
 This structure presents the root of a radix tree and contains three fields:
 
-* `height`   - height of the tree;
+* `height` - height of the tree;
 * `gfp_mask` - tells how memory allocations will be performed;
-* `rnode`    - pointer to the child node.
+* `rnode` - pointer to the child node.
 
 The first field we will discuss is `gfp_mask`:
 
-Low-level kernel memory allocation functions take a set of flags as - `gfp_mask`, which describes how that allocation is to be performed. These `GFP_` flags which control the allocation process can have following values: (`GFP_NOIO` flag) means allocation can block but must not initiate disk I/O; (`__GFP_HIGHMEM` flag) means either ZONE_HIGHMEM or ZONE_NORMAL memory can be used; (`GFP_ATOMIC` flag) means the allocation is high-priority and must not sleep, etc.
+Low-level kernel memory allocation functions take a set of flags as - `gfp_mask`, which describes how that allocation is to be performed. These `GFP_` flags which control the allocation process can have following values: (`GFP_NOIO` flag) means allocation can block but must not initiate disk I/O; (`__GFP_HIGHMEM` flag) means either ZONE\_HIGHMEM or ZONE\_NORMAL memory can be used; (`GFP_ATOMIC` flag) means the allocation is high-priority and must not sleep, etc.
 
 * `GFP_NOIO` - allocation can block but must not initiate disk I/O;
-* `__GFP_HIGHMEM` - either ZONE_HIGHMEM or ZONE_NORMAL can be used;
+* `__GFP_HIGHMEM` - either ZONE\_HIGHMEM or ZONE\_NORMAL can be used;
 * `GFP_ATOMIC` - allocation process is high-priority and must not sleep;
 
 etc.
 
 The next field is `rnode`:
 
-```C
+```
 struct radix_tree_node {
         unsigned int    path;
         unsigned int    count;
@@ -102,18 +99,17 @@ The two last fields of the `radix_tree_node` - `tags` and `slots` are important 
 
 Now that we know about radix tree structure, it is time to look on its API.
 
-Linux kernel radix tree API
----------------------------------------------------------------------------------
+## Linux kernel radix tree API
 
 We start from the data structure initialization. There are two ways to initialize a new radix tree. The first is to use `RADIX_TREE` macro:
 
-```C
+```
 RADIX_TREE(name, gfp_mask);
-````
+```
 
 As you can see we pass the `name` parameter, so with the `RADIX_TREE` macro we can define and initialize radix tree with the given name. Implementation of the `RADIX_TREE` is easy:
 
-```C
+```
 #define RADIX_TREE(name, mask) \
          struct radix_tree_root name = RADIX_TREE_INIT(mask)
 
@@ -128,14 +124,14 @@ At the beginning of the `RADIX_TREE` macro we define instance of the `radix_tree
 
 The second way is to define `radix_tree_root` structure by hand and pass it with mask to the `INIT_RADIX_TREE` macro:
 
-```C
+```
 struct radix_tree_root my_radix_tree;
 INIT_RADIX_TREE(my_tree, gfp_mask_for_my_radix_tree);
 ```
 
 where:
 
-```C
+```
 #define INIT_RADIX_TREE(root, mask)  \
 do {                                 \
         (root)->height = 0;          \
@@ -172,7 +168,7 @@ The first `radix_tree_lookup` function takes two parameters:
 
 This function tries to find the given key in the tree and return the record associated with this key. The second `radix_tree_gang_lookup` function have the following signature
 
-```C
+```
 unsigned int radix_tree_gang_lookup(struct radix_tree_root *root,
                                     void **results,
                                     unsigned long first_index,
@@ -183,8 +179,7 @@ and returns number of records, sorted by the keys, starting from the first index
 
 And the last `radix_tree_lookup_slot` function will return the slot which will contain the data.
 
-Links
----------------------------------------------------------------------------------
+## Links
 
-* [Radix tree](http://en.wikipedia.org/wiki/Radix_tree)
+* [Radix tree](http://en.wikipedia.org/wiki/Radix\_tree)
 * [Trie](http://en.wikipedia.org/wiki/Trie)

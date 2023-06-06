@@ -1,5 +1,4 @@
-Executable and Linkable Format
-================================================================================
+# Elf64
 
 ELF (Executable and Linkable Format) is a standard file format for executable files, object code, shared libraries and core dumps. Linux and many UNIX-like operating systems use this format. Let's look at the structure of the ELF-64 Object File Format and some definitions in the linux kernel source code which related with it.
 
@@ -28,7 +27,7 @@ The ELF header is located at the beginning of the object file. Its main purpose 
 
 You can find the `elf64_hdr` structure which presents ELF64 header in the linux kernel source code:
 
-```C
+```
 typedef struct elf64_hdr {
 	unsigned char	e_ident[EI_NIDENT];
 	Elf64_Half e_type;
@@ -66,7 +65,7 @@ All data stores in a sections in an Elf object file. Sections identified by inde
 
 And presented with the following `elf64_shdr` structure in the linux kernel:
 
-```C
+```
 typedef struct elf64_shdr {
 	Elf64_Word sh_name;
 	Elf64_Word sh_type;
@@ -87,7 +86,7 @@ typedef struct elf64_shdr {
 
 All sections are grouped into segments in an executable or shared object file. Program header is an array of structures which describe every segment. It looks like:
 
-```C
+```
 typedef struct elf64_phdr {
 	Elf64_Word p_type;
 	Elf64_Word p_flags;
@@ -106,8 +105,7 @@ in the linux kernel source code.
 
 The ELF object file also contains other fields/structures which you can find in the [Documentation](http://www.uclibc.org/docs/elf-64-gen.pdf). Now let's a look at the `vmlinux` ELF object.
 
-vmlinux
---------------------------------------------------------------------------------
+## vmlinux
 
 `vmlinux` is also a relocatable ELF object file . We can take a look at it with the `readelf` util. First of all let's look at the header:
 
@@ -137,7 +135,7 @@ ELF Header:
 
 Here we can see that `vmlinux` is a 64-bit executable file.
 
-We can read from the [Documentation/x86/x86_64/mm.txt](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/Documentation/x86/x86_64/mm.txt#L21):
+We can read from the [Documentation/x86/x86\_64/mm.txt](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/Documentation/x86/x86\_64/mm.txt#L21):
 
 ```
 ffffffff80000000 - ffffffffa0000000 (=512 MB)  kernel text mapping, from phys 0

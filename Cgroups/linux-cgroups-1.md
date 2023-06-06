@@ -1,25 +1,23 @@
-Control Groups
-================================================================================
+# Introduction to Control Groups
 
-Introduction
---------------------------------------------------------------------------------
+## Introduction
 
 This is the first part of the new chapter of the [linux insides](https://github.com/0xAX/linux-insides/blob/master/SUMMARY.md) book and as you may guess by part's name - this part will cover [control groups](https://en.wikipedia.org/wiki/Cgroups) or `cgroups` mechanism in the Linux kernel.
 
 `Cgroups` are special mechanism provided by the Linux kernel which allows us to allocate kind of `resources` like processor time, number of processes per group, amount of memory per control group or combination of such resources for a process or set of processes. `Cgroups` are organized hierarchically and here this mechanism is similar to usual processes as they are hierarchical too and child `cgroups` inherit set of certain parameters from their parents. But actually they are not the same. The main difference between `cgroups` and normal processes is that many different hierarchies of control groups may exist simultaneously in one time while normal process tree is always single. This was not a casual step because each control group hierarchy is attached to set of control group `subsystems`.
 
-One `control group subsystem` represents one kind of resources like a processor time or number of [pids](https://en.wikipedia.org/wiki/Process_identifier) or in other words number of processes for a `control group`. Linux kernel provides support for following twelve `control group subsystems`:
+One `control group subsystem` represents one kind of resources like a processor time or number of [pids](https://en.wikipedia.org/wiki/Process\_identifier) or in other words number of processes for a `control group`. Linux kernel provides support for following twelve `control group subsystems`:
 
 * `cpuset` - assigns individual processor(s) and memory nodes to task(s) in a group;
 * `cpu` - uses the scheduler to provide cgroup tasks access to the processor resources;
 * `cpuacct` - generates reports about processor usage by a group;
-* `io` - sets limit to read/write from/to [block devices](https://en.wikipedia.org/wiki/Device_file);
+* `io` - sets limit to read/write from/to [block devices](https://en.wikipedia.org/wiki/Device\_file);
 * `memory` - sets limit on memory usage by a task(s) from a group;
 * `devices` - allows access to devices by a task(s) from a group;
 * `freezer` - allows to suspend/resume for a task(s) from a group;
 * `net_cls` - allows to mark network packets from task(s) from a group;
 * `net_prio` - provides a way to dynamically set the priority of network traffic per network interface for a group;
-* `perf_event` - provides access to [perf events](https://en.wikipedia.org/wiki/Perf_\(Linux\)) to a group;
+* `perf_event` - provides access to [perf events](https://en.wikipedia.org/wiki/Perf\_\(Linux\)) to a group;
 * `hugetlb` - activates support for [huge pages](https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt) for a group;
 * `pid` - sets limit to number of processes in a group.
 
@@ -174,7 +172,7 @@ print line
 ./cgroup_test_script.sh: line 5: /dev/tty: Operation not permitted
 ```
 
-Similar situation will be when you will run you [docker](https://en.wikipedia.org/wiki/Docker_\(software\)) containers for example:
+Similar situation will be when you will run you [docker](https://en.wikipedia.org/wiki/Docker\_\(software\)) containers for example:
 
 ```
 ~$ docker ps
@@ -202,7 +200,7 @@ $ top
 
 And we may see this `cgroup` on host machine:
 
-```C
+```
 $ systemd-cgls
 
 Control group /:
@@ -215,20 +213,19 @@ Control group /:
 
 Now we know a little about `control groups` mechanism, how to use it manually and what's purpose of this mechanism. It's time to look inside of the Linux kernel source code and start to dive into implementation of this mechanism.
 
-Early initialization of control groups
---------------------------------------------------------------------------------
+## Early initialization of control groups
 
 Now after we just saw a little theory about `control groups` Linux kernel mechanism, we may start to dive into the source code of Linux kernel to get better acquainted with this mechanism. As always we will start from the initialization of `control groups`. Initialization of `cgroups` is divided into two parts in the Linux kernel: early and late. In this part we will consider only `early` part and `late` part will be considered in next parts.
 
 Early initialization of `cgroups` starts from the call of the:
 
-```C
+```
 cgroup_init_early();
 ```
 
 function in the [init/main.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/init/main.c) during early initialization of the Linux kernel. This function is defined in the [kernel/cgroup/cgroup.c](https://github.com/torvalds/linux/blob/master/kernel/cgroup/cgroup.c) source code file and starts from the definition of two following local variables:
 
-```C
+```
 int __init cgroup_init_early(void)
 {
 	static struct cgroup_sb_opts __initdata opts;
@@ -241,7 +238,7 @@ int __init cgroup_init_early(void)
 
 The `cgroup_sb_opts` structure defined in the same source code file and looks:
 
-```C
+```
 struct cgroup_sb_opts {
 	u16 subsys_mask;
 	unsigned int flags;
@@ -260,7 +257,7 @@ $ mount -t cgroup -oname=my_cgrp,none /mnt/cgroups
 
 The second variable - `ss` has type - `cgroup_subsys` structure which is defined in the [include/linux/cgroup-defs.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/cgroup-defs.h) header file and as you may guess from the name of the type, it represents a `cgroup` subsystem. This structure contains various fields and callback functions like:
 
-```C
+```
 struct cgroup_subsys {
     int (*css_online)(struct cgroup_subsys_state *css);
     void (*css_offline)(struct cgroup_subsys_state *css);
@@ -283,20 +280,20 @@ Of course the `cgroup_subsys` structure is bigger and has other fields, but it i
 
 After the definition of the two local variables we may see following lines of code:
 
-```C
+```
 init_cgroup_root(&cgrp_dfl_root, &opts);
 cgrp_dfl_root.cgrp.self.flags |= CSS_NO_REF;
 ```
 
 Here we may see call of the `init_cgroup_root` function which will execute initialization of the default unified hierarchy and after this we set `CSS_NO_REF` flag in state of this default `cgroup` to disable reference counting for this css. The `cgrp_dfl_root` is defined in the same source code file:
 
-```C
+```
 struct cgroup_root cgrp_dfl_root;
 ```
 
 Its `cgrp` field represented by the `cgroup` structure which represents a `cgroup` as you already may guess and defined in the [include/linux/cgroup-defs.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/cgroup-defs.h) header file. We already know that a process which is represented by the `task_struct` in the Linux kernel. The `task_struct` does not contain direct link to a `cgroup` where this task is attached. But it may be reached via `css_set` field of the `task_struct`. This `css_set` structure holds pointer to the array of subsystem states:
 
-```C
+```
 struct css_set {
     ...
     ...
@@ -310,7 +307,7 @@ struct css_set {
 
 And via the `cgroup_subsys_state`, a process may get a `cgroup` that this process is attached to:
 
-```C
+```
 struct cgroup_subsys_state {
     ...
     ...
@@ -324,7 +321,7 @@ struct cgroup_subsys_state {
 
 So, the overall picture of `cgroups` related data structure is following:
 
-```                                                 
+```
 +-------------+         +---------------------+    +------------->+---------------------+          +----------------+
 | task_struct |         |       css_set       |    |              | cgroup_subsys_state |          |     cgroup     |
 +-------------+         |                     |    |              +---------------------+          +----------------+
@@ -358,17 +355,15 @@ So, the overall picture of `cgroups` related data structure is following:
                                                                   +---------------------+
 ```
 
-
-
 So, the `init_cgroup_root` fills the `cgrp_dfl_root` with the default values. The next thing is assigning initial `css_set` to the `init_task` which represents first process in the system:
 
-```C
+```
 RCU_INIT_POINTER(init_task.cgroups, &init_css_set);
 ```
 
 And the last big thing in the `cgroup_init_early` function is initialization of `early cgroups`. Here we go over all registered subsystems and assign unique identity number, name of a subsystem and call the `cgroup_init_subsys` function for subsystems which are marked as early:
 
-```C
+```
 for_each_subsys(ss, i) {
 		ss->id = i;
 		ss->name = cgroup_subsys_name[i];
@@ -380,7 +375,7 @@ for_each_subsys(ss, i) {
 
 The `for_each_subsys` here is a macro which is defined in the [kernel/cgroup/cgroup.c](https://github.com/torvalds/linux/blob/master/kernel/cgroup/cgroup.c) source code file and just expands to the `for` loop over `cgroup_subsys` array. Definition of this array may be found in the same source code file and it looks in a little unusual way:
 
-```C
+```
 #define SUBSYS(_x) [_x ## _cgrp_id] = &_x ## _cgrp_subsys,
     static struct cgroup_subsys *cgroup_subsys[] = {
         #include <linux/cgroup_subsys.h>
@@ -388,9 +383,9 @@ The `for_each_subsys` here is a macro which is defined in the [kernel/cgroup/cgr
 #undef SUBSYS
 ```
 
-It is defined as `SUBSYS` macro which takes one argument (name of a subsystem) and defines `cgroup_subsys` array of cgroup subsystems. Additionally we may see that the array is initialized with content of the [linux/cgroup_subsys.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/cgroup_subsys.h) header file. If we will look inside of this header file we will see again set of the `SUBSYS` macros with the given subsystems names:
+It is defined as `SUBSYS` macro which takes one argument (name of a subsystem) and defines `cgroup_subsys` array of cgroup subsystems. Additionally we may see that the array is initialized with content of the [linux/cgroup\_subsys.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/cgroup\_subsys.h) header file. If we will look inside of this header file we will see again set of the `SUBSYS` macros with the given subsystems names:
 
-```C
+```
 #if IS_ENABLED(CONFIG_CPUSETS)
 SUBSYS(cpuset)
 #endif
@@ -405,7 +400,7 @@ SUBSYS(cpu)
 
 This works because of `#undef` statement after first definition of the `SUBSYS` macro. Look at the `&_x ## _cgrp_subsys` expression. The `##` operator concatenates right and left expression in a `C` macro. So as we passed `cpuset`, `cpu` and etc., to the `SUBSYS` macro, somewhere `cpuset_cgrp_subsys`, `cpu_cgrp_subsys` should be defined. And that's true. If you will look in the [kernel/cgroup/cpuset.c](https://github.com/torvalds/linux/blob/master/kernel/cgroup/cpuset.c) source code file, you will see this definition:
 
-```C
+```
 struct cgroup_subsys cpuset_cgrp_subsys = {
     ...
     ...
@@ -424,28 +419,26 @@ The `cgroup_init_subsys` function does initialization of the given subsystem wit
 
 That's all. From this moment early subsystems are initialized.
 
-Conclusion
---------------------------------------------------------------------------------
+## Conclusion
 
 It is the end of the first part which describes introduction into `Control groups` mechanism in the Linux kernel. We covered some theory and the first steps of initialization of stuffs related to `control groups` mechanism. In the next part we will continue to dive into the more practical aspects of `control groups`.
 
 If you have any questions or suggestions write me a comment or ping me at [twitter](https://twitter.com/0xAX).
 
-**Please note that English is not my first language, And I am really sorry for any inconvenience. If you find any mistakes please send me a PR to [linux-insides](https://github.com/0xAX/linux-insides).**
+**Please note that English is not my first language, And I am really sorry for any inconvenience. If you find any mistakes please send me a PR to** [**linux-insides**](https://github.com/0xAX/linux-insides)**.**
 
-Links
---------------------------------------------------------------------------------
+## Links
 
 * [control groups](https://en.wikipedia.org/wiki/Cgroups)
-* [PID](https://en.wikipedia.org/wiki/Process_identifier)
+* [PID](https://en.wikipedia.org/wiki/Process\_identifier)
 * [cpuset](http://man7.org/linux/man-pages/man7/cpuset.7.html)
-* [block devices](https://en.wikipedia.org/wiki/Device_file)
+* [block devices](https://en.wikipedia.org/wiki/Device\_file)
 * [huge pages](https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt)
 * [sysfs](https://en.wikipedia.org/wiki/Sysfs)
 * [proc](https://en.wikipedia.org/wiki/Procfs)
 * [cgroups kernel documentation](https://www.kernel.org/doc/Documentation/cgroup-v1/cgroups.txt)
 * [cgroups v2](https://www.kernel.org/doc/Documentation/cgroup-v2.txt)
 * [bash](https://www.gnu.org/software/bash/)
-* [docker](https://en.wikipedia.org/wiki/Docker_\(software\))
-* [perf events](https://en.wikipedia.org/wiki/Perf_\(Linux\))
+* [docker](https://en.wikipedia.org/wiki/Docker\_\(software\))
+* [perf events](https://en.wikipedia.org/wiki/Perf\_\(Linux\))
 * [Previous chapter](https://0xax.gitbook.io/linux-insides/summary/mm/linux-mm-1)
