@@ -161,7 +161,7 @@ As result of compilation we can see the compressed kernel - `arch/x86/boot/bzIma
 
 ## Installing Linux kernel
 
-As I already wrote we will consider two ways how to launch new kernel: In the first case we can install and run the new version of the Linux kernel on the real hardware and the second is launch the Linux kernel on a virtual machine. In the previous paragraph we saw how to build the Linux kernel from source code and as a result we have got compressed image:
+As I already wrote we will consider two ways to launch new kernel: in the first case we can install and run the new version of the Linux kernel on the real hardware and the second is launch the Linux kernel on a virtual machine. In the previous paragraph we saw how to build the Linux kernel from source code and as a result we have got compressed image:
 
 ```
 ...
@@ -220,7 +220,7 @@ $ make -j4
 
 `busybox` is an executable file - `/bin/busybox` that contains a set of standard tools like [coreutils](https://en.wikipedia.org/wiki/GNU\_Core\_Utilities). In the `busybox` menu we need to enable: `Build BusyBox as a static binary (no shared libs)` option:
 
-![busybox menu](http://i68.tinypic.com/11933bp.png)
+![busysbox menu](https://i.imgur.com/TxPRCzQ.png)
 
 We can find this menu in the:
 
@@ -277,7 +277,7 @@ Consider using [ivandaviov/minimal](https://github.com/ivandavidov/minimal) or [
 
 ## Getting started with the Linux Kernel Development
 
-The main point of this paragraph is to answer two questions: What to do and what not to do before sending your first patch to the Linux kernel. Please, do not confuse this `to do` with `todo`. I have no answer what you can fix in the Linux kernel. I just want to tell you my workflow during experimenting with the Linux kernel source code.
+The main point of this paragraph is to answer two questions: what to do and what not to do before sending your first patch to the Linux kernel. Please, do not confuse this `to do` with `todo`. I have no answer what you can fix in the Linux kernel. I just want to tell you my workflow during experimenting with the Linux kernel source code.
 
 First of all I pull the latest updates from Linus's repo with the following commands:
 
@@ -286,7 +286,7 @@ $ git checkout master
 $ git pull upstream master
 ```
 
-As soon as your local copy of the linux kernel source code is in sync with the [mainline](https://github.com/torvalds/linux) repository, we can start to apply changes to it. I already wrote, I have no advice for where you should start and what `TODO` to choose within the Linux kernel. But the best place for newbies is the `staging` tree. In other words the set of drivers from the [drivers/staging](https://github.com/torvalds/linux/tree/master/drivers/staging) directory. The maintainer of this tree is [Greg Kroah-Hartman](https://en.wikipedia.org/wiki/Greg\_Kroah-Hartman) and the `staging` drivers are a good target for trivial patch fixes. Let's look at this simple example, that describes how to generate a patch, check it and send it to the [Linux kernel mail listing](https://lkml.org/).
+As soon as your local copy of the Linux kernel source code is in sync with the [mainline](https://github.com/torvalds/linux) repository, we can start to apply changes to it. I already wrote, I have no advice for where you should start and what `TODO` to choose within the Linux kernel. But the best place for newbies is the `staging` tree. In other words the set of drivers from the [drivers/staging](https://github.com/torvalds/linux/tree/master/drivers/staging) directory. The maintainer of this tree is [Greg Kroah-Hartman](https://en.wikipedia.org/wiki/Greg_Kroah-Hartman) and the `staging` drivers are a good target for trivial patch fixes. Let's look at this simple example, that describes how to generate a patch, check it and send it to the [Linux kernel mail listing](https://lkml.org/).
 
 If we look in the driver for the [Digi International EPCA PCI](https://github.com/torvalds/linux/tree/master/drivers/staging/dgap) based devices, we will see the `dgap_sindex` function on line 295:
 

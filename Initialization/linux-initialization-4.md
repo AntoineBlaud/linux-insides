@@ -4,7 +4,7 @@
 
 ## Kernel entry point
 
-If you have read the previous part - [Last preparations before the kernel entry point](https://github.com/0xAX/linux-insides/blob/master/Initialization/linux-initialization-3.md), you can remember that we finished all pre-initialization stuff and stopped right before the call to the `start_kernel` function from the [init/main.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/init/main.c). The `start_kernel` is the entry of the generic and architecture independent kernel code, although we will return to the `arch/` folder many times. If you look inside of the `start_kernel` function, you will see that this function is very big. For this moment it contains about `86` calls of functions. Yes, it's very big and of course this part will not cover all the processes that occur in this function. In the current part we will only start to do it. This part and all the next which will be in the [Kernel initialization process](https://github.com/0xAX/linux-insides/blob/master/Initialization/README.md) chapter will cover it.
+If you have read the previous part - [Last preparations before the kernel entry point](https://github.com/0xAX/linux-insides/blob/master/Initialization/linux-initialization-3.md), you can remember that we finished all pre-initialization stuff and stopped right before the call to the `start_kernel` function from the [init/main.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/init/main.c). The `start_kernel` is the entry of the generic and architecture independent kernel code, although we will return to the `arch/` folder many times. If you look inside of the `start_kernel` function, you will see that this function is very big. For this moment it contains about `86` function calls. Yes, it's very big and of course this part will not cover all the processes that occur in this function. In the current part we will only start to do it. This part and all the next which will be in the [Kernel initialization process](https://github.com/0xAX/linux-insides/blob/master/Initialization/README.md) chapter will cover it.
 
 The main purpose of the `start_kernel` to finish kernel initialization process and launch the first `init` process. Before the first process will be started, the `start_kernel` must do many things such as: to enable [lock validator](https://www.kernel.org/doc/Documentation/locking/lockdep-design.txt), to initialize processor id, to enable early [cgroups](http://en.wikipedia.org/wiki/Cgroups) subsystem, to setup per-cpu areas, to initialize different caches in [vfs](http://en.wikipedia.org/wiki/Virtual\_file\_system), to initialize memory manager, rcu, vmalloc, scheduler, IRQs, ACPI and many many more. Only after these steps will we see the launch of the first `init` process in the last part of this chapter. So much kernel code awaits us, let's start.
 
@@ -51,7 +51,7 @@ struct task_struct init_task = INIT_TASK(init_task);
 
 where `task_struct` stores all the information about a process. I will not explain this structure in this book because it's very big. You can find its definition in [include/linux/sched.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/sched.h#L1278). At this moment `task_struct` contains more than `100` fields! Although you will not see the explanation of the `task_struct` in this book, we will use it very often since it is the fundamental structure which describes the `process` in the Linux kernel. I will describe the meaning of the fields of this structure as we meet them in practice.
 
-You can see the definition of the `init_task` and it initialized by the `INIT_TASK` macro. This macro is from [include/linux/init\_task.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/init\_task.h) and it just fills the `init_task` with the values for the first process. For example it sets:
+You can see the definition of the `init_task` and it is initialized by the `INIT_TASK` macro. This macro is from [include/linux/init_task.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/init_task.h) and it just fills the `init_task` with the values for the first process. For example it sets:
 
 * init process state to zero or `runnable`. A runnable process is one which is waiting only for a CPU to run on;
 * init process flags - `PF_KTHREAD` which means - kernel thread;
@@ -61,7 +61,7 @@ You can see the definition of the `init_task` and it initialized by the `INIT_TA
 
 ```
 union thread_union {
-	struct thread_info thread_info;
+    struct thread_info thread_info;
     unsigned long stack[THREAD_SIZE/sizeof(long)];
 };
 ```
@@ -72,7 +72,7 @@ Every process has its own stack and it is 16 kilobytes or 4 page frames in `x86_
 struct thread_info {
         struct task_struct      *task;
         struct exec_domain      *exec_domain;
-        __u32                   flags; 
+        __u32                   flags;
         __u32                   status;
         __u32                   cpu;
         int                     saved_preempt_count;
@@ -177,7 +177,7 @@ As we got the end of the `init` process stack, we write `STACK_END_MAGIC` there.
 if (*end_of_stack(task) != STACK_END_MAGIC) {
         //
         // handle stack overflow here
-	//
+        //
 }
 ```
 
@@ -260,16 +260,16 @@ Remember that we have passed `cpu_number` as `pcp` to the `this_cpu_read` from t
                 __bad_size_call_parameter(); break;                     \
         }                                                               \
         pscr_ret__;                                                     \
-}) 
+})
 ```
 
-Yes, it looks a little strange but it's easy. First of all we can see the definition of the `pscr_ret__` variable with the `int` type. Why int? Ok, `variable` is `common_cpu` and it was declared as per-cpu int variable:
+Yes, it looks a little strange but it's easy. First of all we can see the definition of the `pscr_ret__` variable with the `int` type. Why int? Ok, `variable` is `cpu_number` and it was declared as per-cpu int variable:
 
 ```
 DECLARE_PER_CPU_READ_MOSTLY(int, cpu_number);
 ```
 
-In the next step we call `__verify_pcpu_ptr` with the address of `cpu_number`. `__veryf_pcpu_ptr` used to verify that the given parameter is a per-cpu pointer. After that we set `pscr_ret__` value which depends on the size of the variable. Our `common_cpu` variable is `int`, so it 4 bytes in size. It means that we will get `this_cpu_read_4(common_cpu)` in `pscr_ret__`. In the end of the `__pcpu_size_call_return` we just call it. `this_cpu_read_4` is a macro:
+In the next step we call `__verify_pcpu_ptr` with the address of `cpu_number`. `__veryf_pcpu_ptr` used to verify that the given parameter is a per-cpu pointer. After that we set `pscr_ret__` value which depends on the size of the variable. Our `cpu_number` variable is `int`, so it's 4 bytes in size. It means that we will get `this_cpu_read_4(cpu_number)` in `pscr_ret__`. In the end of the `__pcpu_size_call_return` we just call it. `this_cpu_read_4` is a macro:
 
 ```
 #define this_cpu_read_4(pcp)       percpu_from_op("mov", pcp)
@@ -277,20 +277,20 @@ In the next step we call `__verify_pcpu_ptr` with the address of `cpu_number`. `
 
 which calls `percpu_from_op` and pass `mov` instruction and per-cpu variable there. `percpu_from_op` will expand to the inline assembly call:
 
-```
-asm("movl %%gs:%1,%0" : "=r" (pfo_ret__) : "m" (common_cpu))
+```C
+asm("movl %%gs:%1,%0" : "=r" (pfo_ret__) : "m" (cpu_number))
 ```
 
-Let's try to understand how it works and what it does. The `gs` segment register contains the base of per-cpu area. Here we just copy `common_cpu` which is in memory to the `pfo_ret__` with the `movl` instruction. Or with another words:
+Let's try to understand how it works and what it does. The `gs` segment register contains the base of per-cpu area. Here we just copy `cpu_number` which is in memory to the `pfo_ret__` with the `movl` instruction. Or with another words:
 
-```
-this_cpu_read(common_cpu)
+```C
+this_cpu_read(cpu_number)
 ```
 
 is the same as:
 
-```
-movl %gs:$common_cpu, $pfo_ret__
+```C
+movl %gs:$cpu_number, $pfo_ret__
 ```
 
 As we didn't setup per-cpu area, we have only one - for the current running CPU, we will get `zero` as a result of the `smp_processor_id`.
@@ -347,7 +347,8 @@ If you're not sure that this `set_cpu_*` operations and `cpumask` are not clear 
 
 As we activated the bootstrap processor, it's time to go to the next function in the `start_kernel.` Now it is `page_address_init`, but this function does nothing in our case, because it executes only when all `RAM` can't be mapped directly.
 
-### Print linux banner
+Print Linux banner
+---------------------------------------------------------------------------------
 
 The next call is `pr_notice`:
 

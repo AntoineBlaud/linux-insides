@@ -2,7 +2,7 @@
 
 ## Last preparations before the kernel entry point
 
-This is the third part of the Linux kernel initialization process series. In the previous [part](https://github.com/0xAX/linux-insides/blob/master/Initialization/linux-initialization-2.md) we saw early interrupt and exception handling and will continue to dive into the linux kernel initialization process in the current part. Our next point is 'kernel entry point' - `start_kernel` function from the [init/main.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/init/main.c) source code file. Yes, technically it is not kernel's entry point but the start of the generic kernel code which does not depend on certain architecture. But before we call the `start_kernel` function, we must do some preparations. So let's continue.
+This is the third part of the Linux kernel initialization process series. In the previous [part](https://github.com/0xAX/linux-insides/blob/master/Initialization/linux-initialization-2.md) we saw early interrupt and exception handling and will continue to dive into the Linux kernel initialization process in the current part. Our next point is 'kernel entry point' - `start_kernel` function from the [init/main.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/init/main.c) source code file. Yes, technically it is not kernel's entry point but the start of the generic kernel code which does not depend on certain architecture. But before we call the `start_kernel` function, we must do some preparations. So let's continue.
 
 ## boot\_params again
 
@@ -26,10 +26,10 @@ Now let's look at `__va` macro. This macro defined in [init/main.c](https://gith
 #define __va(x)                 ((void *)((unsigned long)(x)+PAGE_OFFSET))
 ```
 
-where `PAGE_OFFSET` is `__PAGE_OFFSET` which is `0xffff880000000000` and the base virtual address of the direct mapping of all physical memory. So we're getting virtual address of the `boot_params` structure and pass it to the `copy_bootdata` function, where we copy `real_mod_data` to the `boot_params` which is declared in the [arch/x86/include/asm/setup.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/include/asm/setup.h)
+where `PAGE_OFFSET` is `__PAGE_OFFSET` which is `0xffff880000000000` and the base virtual address of the direct mapping of all physical memory. So we're getting virtual address of variable `boot_params` which come along from real mode, and pass it to the `copy_bootdata` function, where we copy `real_mode_data` to the `boot_params` which is defined in the [arch/x86/kernel/setup.c](https://github.com/torvalds/linux/blob/d9919d43cbf6790d2bc0c0a2743c51fc25f26919/arch/x86/kernel/setup.c)
 
-```
-extern struct boot_params boot_params;
+```C
+struct boot_params boot_params;
 ```
 
 Let's look at the `copy_boot_data` implementation:
@@ -176,7 +176,7 @@ if (paravirt_enabled())
 	return;
 ```
 
-we exit from the `reserve_ebda_region` function if paravirtualization is enabled because if it enabled the extended bios data area is absent. In the next step we need to get the end of the low memory:
+we exit from the `reserve_ebda_region` function if paravirtualization is enabled because if it enabled the extended BIOS data area is absent. In the next step we need to get the end of the low memory:
 
 ```
 lowmem = *(unsigned short *)__va(BIOS_LOWMEM_KILOBYTES);
@@ -200,7 +200,7 @@ static inline unsigned int get_bios_ebda(void)
 }
 ```
 
-Let's try to understand how it works. Here we can see that we converting physical address `0x40E` to the virtual, where `0x0040:0x000e` is the segment which contains base address of the extended BIOS data area. Don't worry that we are using `phys_to_virt` function for converting a physical address to virtual address. You can note that previously we have used `__va` macro for the same point, but `phys_to_virt` is the same:
+Let's try to understand how it works. Here we can see that we are converting physical address `0x40E` to the virtual, where `0x0040:0x000e` is the segment which contains base address of the extended BIOS data area. Don't worry that we are using `phys_to_virt` function for converting a physical address to virtual address. You can note that previously we have used `__va` macro for the same point, but `phys_to_virt` is the same:
 
 ```
 static inline void *phys_to_virt(phys_addr_t address)
@@ -237,7 +237,7 @@ which is:
 #define INSANE_CUTOFF		0x20000U
 ```
 
-or 128 kilobytes. In the last step we get lower part in the low memory and extended bios data area and call `memblock_reserve` function which will reserve memory region for extended bios data between low memory and one megabyte mark:
+or 128 kilobytes. In the last step we get lower part in the low memory and extended BIOS data area and call `memblock_reserve` function which will reserve memory region for extended BIOS data between low memory and one megabyte mark:
 
 ```
 lowmem = min(lowmem, ebda_addr);
@@ -250,11 +250,12 @@ memblock_reserve(lowmem, 0x100000 - lowmem);
 * base physical address;
 * region size.
 
-and reserves memory region for the given base address and size. `memblock_reserve` is the first function in this book from linux kernel memory manager framework. We will take a closer look on memory manager soon, but now let's look at its implementation.
+and reserves memory region for the given base address and size. `memblock_reserve` is the first function in this book from Linux kernel memory manager framework. We will take a closer look on memory manager soon, but now let's look at its implementation.
 
-## First touch of the linux kernel memory manager framework
+First touch of the Linux kernel memory manager framework
+--------------------------------------------------------------------------------
 
-In the previous paragraph we stopped at the call of the `memblock_reserve` function and as i said before it is the first function from the memory manager framework. Let's try to understand how it works. `memblock_reserve` function just calls:
+In the previous paragraph we stopped at the call of the `memblock_reserve` function and as I said before it is the first function from the memory manager framework. Let's try to understand how it works. `memblock_reserve` function just calls:
 
 ```
 memblock_reserve_region(base, size, MAX_NUMNODES, 0);
@@ -284,7 +285,7 @@ struct memblock_type {
 };
 ```
 
-As we need to reserve memory block for extended bios data area, the type of the current memory region is reserved where `memblock` structure is:
+As we need to reserve memory block for extended BIOS data area, the type of the current memory region is reserved where `memblock` structure is:
 
 ```
 struct memblock {
@@ -395,7 +396,7 @@ static inline void memblock_set_region_node(struct memblock_region *r, int nid)
 }
 ```
 
-After this we will have first reserved `memblock` for the extended bios data area in the `.meminit.data` section. `reserve_ebda_region` function finished its work on this step and we can go back to the [arch/x86/kernel/head64.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/kernel/head64.c).
+After this we will have first reserved `memblock` for the extended BIOS data area in the `.meminit.data` section. `reserve_ebda_region` function finished its work on this step and we can go back to the [arch/x86/kernel/head64.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/kernel/head64.c).
 
 We finished all preparations before the kernel entry point! The last step in the `x86_64_start_reservations` function is the call of the:
 
@@ -409,7 +410,7 @@ That's all for this part.
 
 ## Conclusion
 
-It is the end of the third part about linux kernel insides. In next part we will see the first initialization steps in the kernel entry point - `start_kernel` function. It will be the first step before we will see launch of the first `init` process.
+It is the end of the third part about Linux kernel insides. In next part we will see the first initialization steps in the kernel entry point - `start_kernel` function. It will be the first step before we will see launch of the first `init` process.
 
 If you have any questions or suggestions write me a comment or ping me at [twitter](https://twitter.com/0xAX).
 

@@ -1,10 +1,9 @@
 # End of initialization
 
-## Kernel initialization. Part 10.
+End of the Linux kernel initialization process
+================================================================================
 
-## End of the linux kernel initialization process
-
-This is tenth part of the chapter about linux kernel [initialization process](https://0xax.gitbook.io/linux-insides/summary/initialization) and in the [previous part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-9) we saw the initialization of the [RCU](http://en.wikipedia.org/wiki/Read-copy-update) and stopped on the call of the `acpi_early_init` function. This part will be the last part of the [Kernel initialization process](https://0xax.gitbook.io/linux-insides/summary/initialization) chapter, so let's finish it.
+This is tenth part of the chapter about Linux kernel [initialization process](https://0xax.gitbook.io/linux-insides/summary/initialization) and in the [previous part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-9) we saw the initialization of the [RCU](http://en.wikipedia.org/wiki/Read-copy-update) and stopped on the call of the `acpi_early_init` function. This part will be the last part of the [Kernel initialization process](https://0xax.gitbook.io/linux-insides/summary/initialization) chapter, so let's finish it.
 
 After the call of the `acpi_early_init` function from the [init/main.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/init/main.c), we can see the following code:
 
@@ -131,12 +130,12 @@ structure from the [include/uapi/linux/resource.h](https://github.com/torvalds/l
 
 ```
 cat /proc/self/limits
-Limit                     Soft Limit           Hard Limit           Units     
+Limit                     Soft Limit           Hard Limit           Units
 ...
 ...
 ...
-Max processes             63815                63815                processes 
-Max pending signals       63815                63815                signals   
+Max processes             63815                63815                processes
+Max pending signals       63815                63815                signals
 ...
 ...
 ...
@@ -182,7 +181,7 @@ nrpages = (nr_free_buffer_pages() * 10) / 100;
 max_buffer_heads = nrpages * (PAGE_SIZE / sizeof(struct buffer_head));
 ```
 
-which will be equal to the `10%` of the `ZONE_NORMAL` (all RAM from the 4GB on the `x86_64`). The next function after the `buffer_init` is - `vfs_caches_init`. This function allocates `SLAB` caches and hashtable for different [VFS](http://en.wikipedia.org/wiki/Virtual\_file\_system) caches. We already saw the `vfs_caches_init_early` function in the eighth part of the linux kernel [initialization process](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-8) which initialized caches for `dcache` (or directory-cache) and [inode](http://en.wikipedia.org/wiki/Inode) cache. The `vfs_caches_init` function makes post-early initialization of the `dcache` and `inode` caches, private data cache, hash tables for the mount points, etc. More details about [VFS](http://en.wikipedia.org/wiki/Virtual\_file\_system) will be described in the separate part. After this we can see `signals_init` function. This function is defined in the [kernel/signal.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/kernel/signal.c) and allocates a cache for the `sigqueue` structures which represents queue of the real time signals. The next function is `page_writeback_init`. This function initializes the ratio for the dirty pages. Every low-level page entry contains the `dirty` bit which indicates whether a page has been written to after been loaded into memory.
+which will be equal to the `10%` of the `ZONE_NORMAL` (all RAM from the 4GB on the `x86_64`). The next function after the `buffer_init` is - `vfs_caches_init`. This function allocates `SLAB` caches and hashtable for different [VFS](http://en.wikipedia.org/wiki/Virtual_file_system) caches. We already saw the `vfs_caches_init_early` function in the eighth part of the Linux kernel [initialization process](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-8) which initialized caches for `dcache` (or directory-cache) and [inode](http://en.wikipedia.org/wiki/Inode) cache. The `vfs_caches_init` function makes post-early initialization of the `dcache` and `inode` caches, private data cache, hash tables for the mount points, etc. More details about [VFS](http://en.wikipedia.org/wiki/Virtual_file_system) will be described in the separate part. After this we can see `signals_init` function. This function is defined in the [kernel/signal.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/kernel/signal.c) and allocates a cache for the `sigqueue` structures which represents queue of the real time signals. The next function is `page_writeback_init`. This function initializes the ratio for the dirty pages. Every low-level page entry contains the `dirty` bit which indicates whether a page has been written to after been loaded into memory.
 
 ### Creation of the root for the procfs
 
@@ -226,9 +225,9 @@ and a couple of directories depends on the different configuration options:
 
 In the end of the `proc_root_init` we call the `proc_sys_init` function which creates `/proc/sys` directory and initializes the [Sysctl](http://en.wikipedia.org/wiki/Sysctl).
 
-It is the end of `start_kernel` function. I did not describe all functions which are called in the `start_kernel`. I skipped them, because they are not important for the generic kernel initialization stuff and depend on only different kernel configurations. They are `taskstats_init_early` which exports per-task statistic to the user-space, `delayacct_init` - initializes per-task delay accounting, `key_init` and `security_init` initialize different security stuff, `check_bugs` - fix some architecture-dependent bugs, `ftrace_init` function executes initialization of the [ftrace](https://www.kernel.org/doc/Documentation/trace/ftrace.txt), `cgroup_init` makes initialization of the rest of the [cgroup](http://en.wikipedia.org/wiki/Cgroups) subsystem,etc. Many of these parts and subsystems will be described in the other chapters.
+It is the end of `start_kernel` function. I did not describe all functions which are called in the `start_kernel`. I skipped them, because they are not important for the generic kernel initialization stuff and depend on only different kernel configurations. They are `taskstats_init_early` which exports per-task statistic to the user-space, `delayacct_init` - initializes per-task delay accounting, `key_init` and `security_init` initialize different security stuff, `check_bugs` - fix some architecture-dependent bugs, `ftrace_init` function executes initialization of the [ftrace](https://www.kernel.org/doc/Documentation/trace/ftrace.txt), `cgroup_init` makes initialization of the rest of the [cgroup](http://en.wikipedia.org/wiki/Cgroups) subsystem, etc. Many of these parts and subsystems will be described in the other chapters.
 
-That's all. Finally we have passed through the long-long `start_kernel` function. But it is not the end of the linux kernel initialization process. We haven't run the first process yet. In the end of the `start_kernel` we can see the last call of the - `rest_init` function. Let's go ahead.
+That's all. Finally we have passed through the long-long `start_kernel` function. But it is not the end of the Linux kernel initialization process. We haven't run the first process yet. In the end of the `start_kernel` we can see the last call of the - `rest_init` function. Let's go ahead.
 
 ### First steps after the start\_kernel
 
@@ -246,7 +245,7 @@ kernel_thread(kernel_init, NULL, CLONE_FS);
 pid = kernel_thread(kthreadd, NULL, CLONE_FS | CLONE_FILES);
 ```
 
-Here the `kernel_thread` function (defined in the [kernel/fork.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/kernel/fork.c)) creates new kernel thread.As we can see the `kernel_thread` function takes three arguments:
+Here the `kernel_thread` function (defined in the [kernel/fork.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/kernel/fork.c)) creates new kernel thread. As we can see the `kernel_thread` function takes three arguments:
 
 * Function which will be executed in a new thread;
 * Parameter for the `kernel_init` function;
@@ -433,7 +432,7 @@ That's all! Linux kernel initialization process is finished!
 
 ### Conclusion
 
-It is the end of the tenth part about the linux kernel [initialization process](https://0xax.gitbook.io/linux-insides/summary/initialization). It is not only the `tenth` part, but also is the last part which describes initialization of the linux kernel. As I wrote in the first [part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-1) of this chapter, we will go through all steps of the kernel initialization and we did it. We started at the first architecture-independent function - `start_kernel` and finished with the launch of the first `init` process in the our system. I skipped details about different subsystem of the kernel, for example I almost did not cover scheduler, interrupts, exception handling, etc. From the next part we will start to dive to the different kernel subsystems. Hope it will be interesting.
+It is the end of the tenth part about the Linux kernel [initialization process](https://0xax.gitbook.io/linux-insides/summary/initialization). It is not only the `tenth` part, but also is the last part which describes initialization of the linux kernel. As I wrote in the first [part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-1) of this chapter, we will go through all steps of the kernel initialization and we did it. We started at the first architecture-independent function - `start_kernel` and finished with the launch of the first `init` process in the our system. I skipped details about different subsystem of the kernel, for example I almost did not cover scheduler, interrupts, exception handling, etc. From the next part we will start to dive to the different kernel subsystems. Hope it will be interesting.
 
 If you have any questions or suggestions write me a comment or ping me at [twitter](https://twitter.com/0xAX).
 

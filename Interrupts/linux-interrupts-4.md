@@ -96,7 +96,7 @@ do_page_fault(struct pt_regs *regs, unsigned long error_code)
 }
 ```
 
-This register contains a linear address which caused `page fault`. In the next step we make a call of the `exception_enter` function from the [include/linux/context\_tracking.h](https://github.com/torvalds/linux/blob/master/include/linux/context\_tracking.h). The `exception_enter` and `exception_exit` are functions from context tracking subsystem in the Linux kernel used by the [RCU](https://en.wikipedia.org/wiki/Read-copy-update) to remove its dependency on the timer tick while a processor runs in userspace. Almost in the every exception handler we will see similar code:
+This register contains a linear address which caused `page fault`. In the next step we make a call of the `exception_enter` function from the [include/linux/context_tracking.h](https://github.com/torvalds/linux/blob/master/include/linux/context_tracking.h). The `exception_enter` and `exception_exit` are functions from context tracking subsystem in the Linux kernel used by the [RCU](https://en.wikipedia.org/wiki/Read-copy-update) to remove its dependency on the timer tick while a processor runs in userspace. Almost in every exception handler we will see similar code:
 
 ```
 enum ctx_state prev_state;
@@ -440,8 +440,8 @@ If you have any questions or suggestions write me a comment or ping me at [twitt
 * [kmemcheck](https://www.kernel.org/doc/Documentation/kmemcheck.txt)
 * [prefetchw](http://www.felixcloutier.com/x86/PREFETCHW.html)
 * [3DNow](https://en.wikipedia.org/?title=3DNow!)
-* [CPU caches](https://en.wikipedia.org/wiki/CPU\_cache)
-* [VFS](https://en.wikipedia.org/wiki/Virtual\_file\_system)
+* [CPU caches](https://en.wikipedia.org/wiki/CPU_cache)
+* [VFS](https://en.wikipedia.org/wiki/Virtual_file_system)
 * [Linux kernel memory management](https://0xax.gitbook.io/linux-insides/summary/mm)
 * [Fix-Mapped Addresses and ioremap](https://0xax.gitbook.io/linux-insides/summary/mm/linux-mm-2)
 * [Extended Industry Standard Architecture](https://en.wikipedia.org/wiki/Extended\_Industry\_Standard\_Architecture)

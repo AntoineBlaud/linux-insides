@@ -1,6 +1,6 @@
 # Elf64
 
-ELF (Executable and Linkable Format) is a standard file format for executable files, object code, shared libraries and core dumps. Linux and many UNIX-like operating systems use this format. Let's look at the structure of the ELF-64 Object File Format and some definitions in the linux kernel source code which related with it.
+ELF (Executable and Linkable Format) is a standard file format for executable files, object code, shared libraries and core dumps. Linux and many UNIX-like operating systems use this format. Let's look at the structure of the ELF-64 Object File Format and some definitions in the Linux kernel source code which related with it.
 
 An ELF object file consists of the following parts:
 
@@ -12,7 +12,7 @@ Now let's have a closer look on these components.
 
 **ELF header**
 
-The ELF header is located at the beginning of the object file. Its main purpose is to locate all other parts of the object file. The File header contains the following fields:
+The ELF header is located at the beginning of the object file. Its main purpose is to locate all other parts of the object file. The file header contains the following fields:
 
 * ELF identification - array of bytes which helps identify the file as an ELF object file and also provides information about general object file characteristic;
 * Object file type - identifies the object file type. This field can describe that ELF file is a relocatable object file, an executable file, etc...;
@@ -25,7 +25,7 @@ The ELF header is located at the beginning of the object file. Its main purpose 
 * Size of a program header table entry;
 * and other fields...
 
-You can find the `elf64_hdr` structure which presents ELF64 header in the linux kernel source code:
+You can find the `elf64_hdr` structure which presents ELF64 header in the Linux kernel source code:
 
 ```
 typedef struct elf64_hdr {
@@ -63,7 +63,7 @@ All data stores in a sections in an Elf object file. Sections identified by inde
 * Address alignment boundary;
 * Size of entries, if section has table;
 
-And presented with the following `elf64_shdr` structure in the linux kernel:
+And presented with the following `elf64_shdr` structure in the Linux kernel:
 
 ```
 typedef struct elf64_shdr {
@@ -99,7 +99,7 @@ typedef struct elf64_phdr {
 } Elf64_Phdr;
 ```
 
-in the linux kernel source code.
+in the Linux kernel source code.
 
 `elf64_phdr` defined in the same [elf.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/uapi/linux/elf.h#L254).
 
@@ -107,12 +107,12 @@ The ELF object file also contains other fields/structures which you can find in 
 
 ## vmlinux
 
-`vmlinux` is also a relocatable ELF object file . We can take a look at it with the `readelf` util. First of all let's look at the header:
+`vmlinux` is also a relocatable ELF object file . We can take a look at it with the `readelf` utility. First of all let's look at the header:
 
 ```
 $ readelf -h  vmlinux
 ELF Header:
-  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 
+  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00
   Class:                             ELF64
   Data:                              2's complement, little endian
   Version:                           1 (current)
@@ -145,7 +145,7 @@ We can then look this address up in the `vmlinux` ELF object with:
 
 ```
 $ readelf -s vmlinux | grep ffffffff81000000
-     1: ffffffff81000000     0 SECTION LOCAL  DEFAULT    1 
+     1: ffffffff81000000     0 SECTION LOCAL  DEFAULT    1
  65099: ffffffff81000000     0 NOTYPE  GLOBAL DEFAULT    1 _text
  90766: ffffffff81000000     0 NOTYPE  GLOBAL DEFAULT    1 startup_64
 ```
@@ -203,9 +203,9 @@ Program Headers:
   Segment Sections...
    00     .text .notes __ex_table .rodata __bug_table .pci_fixup .builtin_fw
           .tracedata __ksymtab __ksymtab_gpl __kcrctab __kcrctab_gpl
-		  __ksymtab_strings __param __modver 
-   01     .data .vvar 
-   02     .data..percpu 
+		  __ksymtab_strings __param __modver
+   01     .data .vvar
+   02     .data..percpu
    03     .init.text .init.data .x86_cpu_dev.init .altinstructions
           .altinstr_replacement .iommu_table .apicdrivers .exit.text
 		  .smp_locks .data_nosave .bss .brk

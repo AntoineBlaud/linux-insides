@@ -7,6 +7,8 @@ A book-in-progress about the linux kernel and its insides.
 
 **Questions/Suggestions**: Feel free about any questions or suggestions by pinging me at twitter [@0xAX](https://twitter.com/0xAX), adding an [issue](https://github.com/0xAX/linux-insides/issues/new) or just drop me an [email](mailto:anotherworldofworld@gmail.com).
 
+Generating eBooks and PDFs - [documentation](https://github.com/GitbookIO/gitbook/blob/master/docs/ebook.md)
+
 # Mailing List
 
 We have a Google Group mailing list for learning the kernel source code. Here are some instructions about how to use it.
@@ -24,13 +26,6 @@ Just send emails to `kernelhacking@googlegroups.com`. The basic usage is the sam
 #### Archives
 
 https://groups.google.com/forum/#!forum/kernelhacking
-
-Support
--------
-
-**Support** If you like `linux-insides` you can support me with: 
-
-[![Support with bitcoin](https://img.shields.io/badge/donate-bitcoin-green.svg)](https://www.coinbase.com/checkouts/0bfa452a41cf52c0b3f99500b4f31685) [![Join the chat at https://gitter.im/0xAX/linux-insides](https://badges.gitter.im/0xAX/linux-insides.svg)](https://gitter.im/0xAX/linux-insides?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 On other languages
 -------------------
@@ -63,28 +58,14 @@ In order to run your own copy of the book with gitbook within a local container:
     systemctl restart docker.service
    ```
 
-2. Build container image
+2. Run docker image
    ```bash
-   docker image build \
-       --rm --squash \
-       --label linux-insides \
-       --tag linux-insides-book:latest \
-       -f Dockerfile .
+   make run
    ```
 
-3. Create and run book in local container
-   ```bash
-   docker run \
-       --detach \
-       --rm \
-       -p 4000:4000 \
-       --name linux-insides-book \
-       --hostname linux-insides-book \
-       linux-insides-book
-   ```
+3. Open your local copy of linux insides book under this url
+   http://localhost:4000 or run `make browse`
 
-4. Open your local copy of linux insides book under this url
-   http://localhost:4000
 
 Contributions 
 --------------

@@ -227,7 +227,7 @@ int main(void)
 {
         unsigned long a[3] = {10000000000, 0, 1};
         unsigned long b = 5;
-        
+
         __asm__ volatile("incq %0" :: "m" (a[0]));
 
         printf("a[0] - b = %lu\n", a[0] - b);
@@ -284,12 +284,12 @@ Now the result is correct. If we look at the assembly output again:
 ```
 00000000004004f6 <main>:
   400404:       48 b8 00 e4 0b 54 02    movabs $0x2540be400,%rax
-  40040b:       00 00 00 
+  40040b:       00 00 00
   40040e:       48 89 04 24             mov    %rax,(%rsp)
   400412:       48 c7 44 24 08 00 00    movq   $0x0,0x8(%rsp)
-  400419:       00 00 
+  400419:       00 00
   40041b:       48 c7 44 24 10 01 00    movq   $0x1,0x10(%rsp)
-  400422:       00 00 
+  400422:       00 00
   400424:       48 ff 04 24             incq   (%rsp)
   400428:       48 8b 04 24             mov    (%rsp),%rax
   400431:       48 8d 70 fb             lea    -0x5(%rax),%rsi
@@ -302,13 +302,13 @@ we will see one difference here which is in the last two lines:
   400431:       48 8d 70 fb             lea    -0x5(%rax),%rsi
 ```
 
-Instead of constant folding, `GCC` now preserves calculations in the assembly and places the value of `a[0]` in the `%rax` register afterwards. In the end it just subtracts the constant value of `b` from the `%rax` register and puts result to the `%rsi`.
+Instead of constant folding, `GCC` now preserves calculations in the assembly and places the value of `a[0]` in the `%rax` register afterwards. In the end it just subtracts the constant value of `b` from the `%rax` register and puts the result to the `%rsi`.
 
 Besides the `memory` specifier, we also see a new constraint here - `m`. This constraint tells the compiler to use the address of `a[0]`, instead of its value. So, now we are finished with `clobbers` and we may continue by looking at other constraints supported by `GCC` besides `r` and `m` which we have already seen.
 
 ## Constraints
 
-Now that we are finished with all three parts of an inline assembly statement, let's return to constraints. We already saw some constraints in the previous parts, like `r` which represents a `register` operand, `m` which represents a memory operand and `0-9` which represent an reused, indexed operand. Besides these `GCC` provides support for other constraints. For example the `i` constraint represents an `immediate` integer operand with know value:
+Now that we are finished with all three parts of an inline assembly statement, let's return to constraints. We already saw some constraints in the previous parts, like `r` which represents a `register` operand, `m` which represents a memory operand and `0-9` which represent a reused, indexed operand. Besides these `GCC` provides support for other constraints. For example the `i` constraint represents an `immediate` integer operand with known value:
 
 ```
 #include <stdio.h>
@@ -383,7 +383,7 @@ int main(void)
 {
         static unsigned long arr[3] = {0, 1, 2};
         static unsigned long element;
-        
+
         __asm__ volatile("movq 16+%1, %0" : "=r"(element) : "o"(arr));
         printf("%lu\n", element);
         return 0;
@@ -428,7 +428,7 @@ That's about all of the commonly used constraints in inline assembly statements.
 
 ## Architecture specific constraints
 
-Before we finish, let's look at the set of special constraints. These constrains are architecture specific and as this book is specific to the [x86\_64](https://en.wikipedia.org/wiki/X86-64) architecture, we will look at constraints related to it. First of all the set of `a` ... `d` and also `S` and `D` constraints represent [generic purpose](https://en.wikipedia.org/wiki/Processor\_register) registers. In this case the `a` constraint corresponds to `%al`, `%ax`, `%eax` or `%rax` register depending on instruction size. The `S` and `D` constraints are `%si` and `%di` registers respectively. For example let's take our previous example. We can see in its assembly output that value of the `a` variable is stored in the `%eax` register. Now let's look at the assembly output of the same assembly, but with other constraint:
+Before we finish, let's look at the set of special constraints. These constrains are architecture specific and as this book is specific to the [x86_64](https://en.wikipedia.org/wiki/X86-64) architecture, we will look at constraints related to it. First of all the set of `a` ... `d` and also `S` and `D` constraints represent [generic purpose](https://en.wikipedia.org/wiki/Processor_register) registers. In this case the `a` constraint corresponds to `%al`, `%ax`, `%eax` or `%rax` register depending on instruction size. The `S` and `D` constraints are `%si` and `%di` registers respectively. For example let's take our previous example. We can see in its assembly output that value of the `a` variable is stored in the `%eax` register. Now let's look at the assembly output of the same assembly, but with other constraint:
 
 ```
 #include <stdio.h>
@@ -457,8 +457,8 @@ That's all. You may find more details about [x86\_64](https://en.wikipedia.org/w
 ## Links
 
 * [Linux kernel source code](https://github.com/torvalds/linux)
-* [assembly programming language](https://en.wikipedia.org/wiki/Assembly\_language)
-* [GCC](https://en.wikipedia.org/wiki/GNU\_Compiler\_Collection)
+* [assembly programming language](https://en.wikipedia.org/wiki/Assembly_language)
+* [GCC](https://en.wikipedia.org/wiki/GNU_Compiler_Collection)
 * [GNU extension](https://gcc.gnu.org/onlinedocs/gcc/C-Extensions.html)
 * [Global Descriptor Table](https://en.wikipedia.org/wiki/Global\_Descriptor\_Table)
 * [Processor registers](https://en.wikipedia.org/wiki/Processor\_register)

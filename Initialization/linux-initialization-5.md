@@ -31,7 +31,7 @@ We already saw implementation of the `set_intr_gate` in the previous part about 
 * base address of the interrupt/exception handler;
 * third parameter is - `Interrupt Stack Table`. `IST` is a new mechanism in the `x86_64` and part of the [TSS](http://en.wikipedia.org/wiki/Task\_state\_segment). Every active thread in kernel mode has own kernel stack which is `16` kilobytes. While a thread in user space, this kernel stack is empty.
 
-In addition to per-thread stacks, there are a couple of specialized stacks associated with each CPU. All about these stack you can read in the linux kernel documentation - [Kernel stacks](https://www.kernel.org/doc/Documentation/x86/kernel-stacks). `x86_64` provides feature which allows to switch to a new `special` stack for during any events as non-maskable interrupt and etc... And the name of this feature is - `Interrupt Stack Table`. There can be up to 7 `IST` entries per CPU and every entry points to the dedicated stack. In our case this is `DEBUG_STACK`.
+In addition to per-thread stacks, there are a couple of specialized stacks associated with each CPU. All about these stack you can read in the Linux kernel documentation - [Kernel stacks](https://www.kernel.org/doc/Documentation/x86/kernel-stacks). `x86_64` provides feature which allows to switch to a new `special` stack for during any events as non-maskable interrupt and etc... And the name of this feature is - `Interrupt Stack Table`. There can be up to 7 `IST` entries per CPU and every entry points to the dedicated stack. In our case this is `DEBUG_STACK`.
 
 `set_intr_gate_ist` and `set_system_intr_gate_ist` work by the same principle as `set_intr_gate` with only one difference. Both of these functions checks interrupt number and call `_set_gate` inside:
 
@@ -42,11 +42,11 @@ _set_gate(n, GATE_INTERRUPT, addr, 0, ist, __KERNEL_CS);
 
 as `set_intr_gate` does this. But `set_intr_gate` calls `_set_gate` with [dpl](http://en.wikipedia.org/wiki/Privilege\_level) - 0, and ist - 0, but `set_intr_gate_ist` and `set_system_intr_gate_ist` sets `ist` as `DEBUG_STACK` and `set_system_intr_gate_ist` sets `dpl` as `0x3` which is the lowest privilege. When an interrupt occurs and the hardware loads such a descriptor, then hardware automatically sets the new stack pointer based on the IST value, then invokes the interrupt handler. All of the special kernel stacks will be set in the `cpu_init` function (we will see it later).
 
-As `#DB` and `#BP` gates written to the `idt_descr`, we reload `IDT` table with `load_idt` which just call `ldtr` instruction. Now let's look on interrupt handlers and will try to understand how they works. Of course, I can't cover all interrupt handlers in this book and I do not see the point in this. It is very interesting to delve in the linux kernel source code, so we will see how `debug` handler implemented in this part, and understand how other interrupt handlers are implemented will be your task.
+As `#DB` and `#BP` gates written to the `idt_descr`, we reload `IDT` table with `load_idt` which just call `ldtr` instruction. Now let's look on interrupt handlers and will try to understand how they works. Of course, I can't cover all interrupt handlers in this book and I do not see the point in this. It is very interesting to delve in the Linux kernel source code, so we will see how `debug` handler implemented in this part, and understand how other interrupt handlers are implemented will be your task.
 
 ### #DB handler
 
-As you can read above, we passed address of the `#DB` handler as `&debug` in the `set_intr_gate_ist`. [lxr.free-electrons.com](http://lxr.free-electrons.com/ident) is a great resource for searching identifiers in the linux kernel source code, but unfortunately you will not find `debug` handler with it. All of you can find, it is `debug` definition in the [arch/x86/include/asm/traps.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/include/asm/traps.h):
+As you can read above, we passed address of the `#DB` handler as `&debug` in the `set_intr_gate_ist`. [lxr.free-electrons.com](http://lxr.free-electrons.com/ident) is a great resource for searching identifiers in the Linux kernel source code, but unfortunately you will not find `debug` handler with it. All of you can find, it is `debug` definition in the [arch/x86/include/asm/traps.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/include/asm/traps.h):
 
 ```
 asmlinkage void debug(void);
@@ -160,9 +160,9 @@ The next step is initialization of early `ioremap`. In general there are two way
 * I/O Ports;
 * Device memory.
 
-We already saw first method (`outb/inb` instructions) in the part about linux kernel booting [process](https://0xax.gitbook.io/linux-insides/summary/booting/linux-bootstrap-3). The second method is to map I/O physical addresses to virtual addresses. When a physical address is accessed by the CPU, it may refer to a portion of physical RAM which can be mapped on memory of the I/O device. So `ioremap` used to map device memory into kernel address space.
+We already saw first method (`outb/inb` instructions) in the part about Linux kernel booting [process](https://0xax.gitbook.io/linux-insides/summary/booting/linux-bootstrap-3). The second method is to map I/O physical addresses to virtual addresses. When a physical address is accessed by the CPU, it may refer to a portion of physical RAM which can be mapped on memory of the I/O device. So `ioremap` used to map device memory into kernel address space.
 
-As i wrote above next function is the `early_ioremap_init` which re-maps I/O memory to kernel address space so it can access it. We need to initialize early ioremap for early initialization code which needs to temporarily map I/O or memory regions before the normal mapping functions like `ioremap` are available. Implementation of this function is in the [arch/x86/mm/ioremap.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/mm/ioremap.c). At the start of the `early_ioremap_init` we can see definition of the `pmd` pointer with `pmd_t` type (which presents page middle directory entry `typedef struct { pmdval_t pmd; } pmd_t;` where `pmdval_t` is `unsigned long`) and make a check that `fixmap` aligned in a correct way:
+As I wrote above next function is the `early_ioremap_init` which re-maps I/O memory to kernel address space so it can access it. We need to initialize early ioremap for early initialization code which needs to temporarily map I/O or memory regions before the normal mapping functions like `ioremap` are available. Implementation of this function is in the [arch/x86/mm/ioremap.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/mm/ioremap.c). At the start of the `early_ioremap_init` we can see definition of the `pmd` pointer with `pmd_t` type (which presents page middle directory entry `typedef struct { pmdval_t pmd; } pmd_t;` where `pmdval_t` is `unsigned long`) and make a check that `fixmap` aligned in a correct way:
 
 ```
 pmd_t *pmd;
@@ -194,7 +194,7 @@ After early `ioremap` was initialized, you can see the following code:
 ROOT_DEV = old_decode_dev(boot_params.hdr.root_dev);
 ```
 
-This code obtains major and minor numbers for the root device where `initrd` will be mounted later in the `do_mount_root` function. Major number of the device identifies a driver associated with the device. Minor number referred on the device controlled by driver. Note that `old_decode_dev` takes one parameter from the `boot_params_structure`. As we can read from the x86 linux kernel boot protocol:
+This code obtains major and minor numbers for the root device where `initrd` will be mounted later in the `do_mount_root` function. Major number of the device identifies a driver associated with the device. Minor number referred on the device controlled by driver. Note that `old_decode_dev` takes one parameter from the `boot_params_structure`. As we can read from the x86 Linux kernel boot protocol:
 
 ```
 Field name:	root_dev
@@ -293,7 +293,7 @@ presents abstraction for a tree-like subset of system resources. This structure 
        |
 +-------------+
 |             |
-|    child    | 
+|    child    |
 |             |
 +-------------+
 ```
@@ -401,7 +401,7 @@ static inline void __init copy_edd(void)
 
 ### Memory descriptor initialization
 
-The next step is initialization of the memory descriptor of the init process. As you already can know every process has its own address space. This address space presented with special data structure which called `memory descriptor`. Directly in the linux kernel source code memory descriptor presented with `mm_struct` structure. `mm_struct` contains many different fields related with the process address space as start/end address of the kernel code/data, start/end of the brk, number of memory areas, list of memory areas and etc... This structure defined in the [include/linux/mm\_types.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/mm\_types.h). As every process has its own memory descriptor, `task_struct` structure contains it in the `mm` and `active_mm` field. And our first `init` process has it too. You can remember that we saw the part of initialization of the init `task_struct` with `INIT_TASK` macro in the previous [part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-4):
+The next step is initialization of the memory descriptor of the init process. As you already can know every process has its own address space. This address space presented with special data structure which called `memory descriptor`. Directly in the Linux kernel source code memory descriptor presented with `mm_struct` structure. `mm_struct` contains many different fields related with the process address space as start/end address of the kernel code/data, start/end of the brk, number of memory areas, list of memory areas and etc... This structure defined in the [include/linux/mm_types.h](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/linux/mm_types.h). As every process has its own memory descriptor, `task_struct` structure contains it in the `mm` and `active_mm` field. And our first `init` process has it too. You can remember that we saw the part of initialization of the init `task_struct` with `INIT_TASK` macro in the previous [part](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-4):
 
 ```
 #define INIT_TASK(tsk)  \
@@ -415,7 +415,7 @@ The next step is initialization of the memory descriptor of the init process. As
 }
 ```
 
-`mm` points to the process address space and `active_mm` points to the active address space if process has no address space such as kernel threads (more about it you can read in the [documentation](https://www.kernel.org/doc/Documentation/vm/active\_mm.txt)). Now we fill memory descriptor of the initial process:
+`mm` points to the process address space and `active_mm` points to the active address space if process has no address space such as kernel threads (more about it you can read in the [documentation](https://www.kernel.org/doc/Documentation/vm/active_mm.txt)). Now we fill memory descriptor of the initial process:
 
 ```
 	init_mm.start_code = (unsigned long) _text;
@@ -450,7 +450,7 @@ where `mm_rb` is a red-black tree of the virtual memory areas, `pgd` is a pointe
 	bss_resource.end = __pa_symbol(__bss_stop)-1;
 ```
 
-We already know a little about `resource` structure (read above). Here we fills code/data/bss resources with their physical addresses. You can see it in the `/proc/iomem`:
+We already know a little about `resource` structure (read above). Here we fill code/data/bss resources with their physical addresses. You can see it in the `/proc/iomem`:
 
 ```
 00100000-be825fff : System RAM
@@ -484,7 +484,7 @@ void x86_configure_nx(void)
 
 ### Conclusion
 
-It is the end of the fifth part about linux kernel initialization process. In this part we continued to dive in the `setup_arch` function which makes initialization of architecture-specific stuff. It was long part, but we have not finished with it. As i already wrote, the `setup_arch` is big function, and I am really not sure that we will cover all of it even in the next part. There were some new interesting concepts in this part like `Fix-mapped` addresses, ioremap and etc... Don't worry if they are unclear for you. There is a special part about these concepts - [Linux kernel memory management Part 2.](https://github.com/0xAX/linux-insides/blob/master/MM/linux-mm-2.md). In the next part we will continue with the initialization of the architecture-specific stuff and will see parsing of the early kernel parameters, early dump of the pci devices, `Desktop Management Interface` scanning and many many more.
+It is the end of the fifth part about Linux kernel initialization process. In this part we continued to dive in the `setup_arch` function which makes initialization of architecture-specific stuff. It was long part, but we are not finished with it. As I already wrote, the `setup_arch` is big function, and I am really not sure that we will cover all of it even in the next part. There were some new interesting concepts in this part like `Fix-mapped` addresses, ioremap and etc... Don't worry if they are unclear for you. There is a special part about these concepts - [Linux kernel memory management Part 2.](https://github.com/0xAX/linux-insides/blob/master/MM/linux-mm-2.md). In the next part we will continue with the initialization of the architecture-specific stuff and will see parsing of the early kernel parameters, early dump of the pci devices, `Desktop Management Interface` scanning and many many more.
 
 If you have any questions or suggestions write me a comment or ping me at [twitter](https://twitter.com/0xAX).
 
@@ -495,10 +495,10 @@ If you have any questions or suggestions write me a comment or ping me at [twitt
 * [mm vs active\_mm](https://www.kernel.org/doc/Documentation/vm/active\_mm.txt)
 * [e820](http://en.wikipedia.org/wiki/E820)
 * [Supervisor mode access prevention](https://lwn.net/Articles/517475/)
-* [Kernel stacks](https://www.kernel.org/doc/Documentation/x86/x86\_64/kernel-stacks)
-* [TSS](http://en.wikipedia.org/wiki/Task\_state\_segment)
-* [IDT](http://en.wikipedia.org/wiki/Interrupt\_descriptor\_table)
-* [Memory mapped I/O](http://en.wikipedia.org/wiki/Memory-mapped\_I/O)
+* [Kernel stacks](https://www.kernel.org/doc/Documentation/x86/kernel-stacks)
+* [TSS](http://en.wikipedia.org/wiki/Task_state_segment)
+* [IDT](http://en.wikipedia.org/wiki/Interrupt_descriptor_table)
+* [Memory mapped I/O](http://en.wikipedia.org/wiki/Memory-mapped_I/O)
 * [CFI directives](https://sourceware.org/binutils/docs/as/CFI-directives.html)
 * [PDF. dwarf4 specification](http://dwarfstd.org/doc/DWARF4.pdf)
 * [Call stack](http://en.wikipedia.org/wiki/Call\_stack)

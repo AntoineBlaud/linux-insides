@@ -200,7 +200,7 @@ Like before, we push `rsi` onto the stack to preserve the pointer to `boot_param
 * `output` - the start address of the decompressed kernel;
 * `output_len` - the size of the decompressed kernel;
 
-All arguments will be passed through registers as per the [System V Application Binary Interface](http://www.x86-64.org/documentation/abi.pdf). We've finished all the preparations and can now decompress the kernel.
+All arguments will be passed through registers as per the [System V Application Binary Interface](https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf). We've finished all the preparations and can now decompress the kernel.
 
 ## Kernel decompression
 
@@ -377,9 +377,9 @@ That's all. Now we are in the kernel!
 
 ## Conclusion
 
-This is the end of the fifth part about the linux kernel booting process. We will not see any more posts about the kernel booting process (there may be updates to this and previous posts though), but there will be many posts about other kernel internals.
+This is the end of the fifth part about the Linux kernel booting process. We will not see any more posts about the kernel booting process (there may be updates to this and previous posts though), but there will be many posts about other kernel internals.
 
-The Next chapter will describe more advanced details about linux kernel booting process, like load address randomization and etc.
+The Next chapter will describe more advanced details about Linux kernel booting process, like load address randomization and etc.
 
 If you have any questions or suggestions write me a comment or ping me in [twitter](https://twitter.com/0xAX).
 

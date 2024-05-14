@@ -6,7 +6,7 @@ In the fifth [part](https://0xax.gitbook.io/linux-insides/summary/booting/linux-
 
 Yeah, there will be many different things, but many many and once again many work with **memory**.
 
-In my view, memory management is one of the most complex parts of the Linux kernel and in system programming in general. This is why we need to get acquainted with paging, before we proceed with the kernel initialization stuff.
+In my view, memory management is one of the most complex parts of the Linux kernel and system programming in general. This is why we need to get acquainted with paging, before we proceed with the kernel initialization stuff.
 
 `Paging` is a mechanism that translates a linear memory address to a physical address. If you have read the previous parts of this book, you may remember that we saw segmentation in real mode when physical addresses are calculated by shifting a segment register by four and adding an offset. We also saw segmentation in protected mode, where we used the descriptor tables and base addresses from descriptors with offsets to calculate the physical addresses. Now we will see paging in 64-bit mode.
 
@@ -24,7 +24,7 @@ There are three paging modes:
 * PAE paging;
 * IA-32e paging.
 
-We will only explain the last mode here. To enable the `IA-32e paging` paging mode we need to do following things:
+We will only explain the last mode here. To enable the `IA-32e paging` paging mode we need to do the following things:
 
 * set the `CR0.PG` bit;
 * set the `CR4.PAE` bit;
@@ -166,7 +166,7 @@ This solution is `sign extension`. Here we can see that the lower 48 bits of a v
 * Kernel space
 * Userspace
 
-Userspace occupies the lower part of the virtual address space, from `0x000000000000000` to `0x00007fffffffffff` and kernel space occupies the highest part from `0xffff8000000000` to `0xffffffffffffffff`. Note that bits `63:48` is 0 for userspace and 1 for kernel space. All addresses which are in kernel space and in userspace or in other words which higher `63:48` bits are zeroes or ones are called `canonical` addresses. There is a `non-canonical` area between these memory regions. Together these two memory regions (kernel space and user space) are exactly `2^48` bits wide. We can find the virtual memory map with 4 level page tables in the [Documentation/x86/x86\_64/mm.txt](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/Documentation/x86/x86\_64/mm.txt):
+Userspace occupies the lower part of the virtual address space, from `0x000000000000000` to `0x00007fffffffffff` and kernel space occupies the highest part from `0xffff8000000000` to `0xffffffffffffffff`. Note that bits `63:47` is 0 for userspace and 1 for kernel space. All addresses which are in kernel space and in userspace or in other words which higher `63:48` bits are zeroes or ones are called `canonical` addresses. There is a `non-canonical` area between these memory regions. Together these two memory regions (kernel space and user space) are exactly `2^48` bits wide. We can find the virtual memory map with 4 level page tables in the [Documentation/x86/x86_64/mm.txt](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/Documentation/x86/x86_64/mm.txt):
 
 ```
 0000000000000000 - 00007fffffffffff (=47 bits) user space, different per mm
@@ -206,7 +206,7 @@ Usually kernel's `.text` starts here with the `CONFIG_PHYSICAL_START` offset. We
 
 ```
 readelf -s vmlinux | grep ffffffff81000000
-     1: ffffffff81000000     0 SECTION LOCAL  DEFAULT    1 
+     1: ffffffff81000000     0 SECTION LOCAL  DEFAULT    1
  65099: ffffffff81000000     0 NOTYPE  GLOBAL DEFAULT    1 _text
  90766: ffffffff81000000     0 NOTYPE  GLOBAL DEFAULT    1 startup_64
 ```

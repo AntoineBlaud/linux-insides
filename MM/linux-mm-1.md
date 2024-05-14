@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Memory management is one of the most complex (and I think that it is the most complex) part of the operating system kernel. In the [last preparations before the kernel entry point](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-3) part we stopped right before call of the `start_kernel` function. This function initializes all the kernel features (including architecture-dependent features) before the kernel runs the first `init` process. You may remember as we built early page tables, identity page tables and fixmap page tables in the boot time. No complicated memory management is working yet. When the `start_kernel` function is called we will see the transition to more complex data structures and techniques for memory management. For a good understanding of the initialization process in the linux kernel we need to have a clear understanding of these techniques. This chapter will provide an overview of the different parts of the linux kernel memory management framework and its API, starting from the `memblock`.
+Memory management is one of the most complex (and I think that it is the most complex) part of the operating system kernel. In the [last preparations before the kernel entry point](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-3) part we stopped right before call of the `start_kernel` function. This function initializes all the kernel features (including architecture-dependent features) before the kernel runs the first `init` process. You may remember as we built early page tables, identity page tables and fixmap page tables in the boot time. No complicated memory management is working yet. When the `start_kernel` function is called we will see the transition to more complex data structures and techniques for memory management. For a good understanding of the initialization process in the Linux kernel we need to have a clear understanding of these techniques. This chapter will provide an overview of the different parts of the linux kernel memory management framework and its API, starting from the `memblock`.
 
 ## Memblock
 
@@ -149,7 +149,7 @@ On this step the initialization of the `memblock` structure has been finished an
 
 ## Memblock API
 
-Ok we have finished with the initialization of the `memblock` structure and now we can look at the Memblock API and its implementation. As I said above, the implementation of `memblock` is taking place fully in [mm/memblock.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/mm/memblock.c). To understand how `memblock` works and how it is implemented, let's look at its usage first. There are a couple of [places](http://lxr.free-electrons.com/ident?i=memblock) in the linux kernel where memblock is used. For example let's take `memblock_x86_fill` function from the [arch/x86/kernel/e820.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/kernel/e820.c#L1061). This function goes through the memory map provided by the [e820](http://en.wikipedia.org/wiki/E820) and adds memory regions reserved by the kernel to the `memblock` with the `memblock_add` function. Since we have met the `memblock_add` function first, let's start from it.
+Ok we have finished with the initialization of the `memblock` structure and now we can look at the Memblock API and its implementation. As I said above, the implementation of `memblock` is taking place fully in [mm/memblock.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/mm/memblock.c). To understand how `memblock` works and how it is implemented, let's look at its usage first. There are a couple of [places](http://lxr.free-electrons.com/ident?i=memblock) in the Linux kernel where memblock is used. For example let's take `memblock_x86_fill` function from the [arch/x86/kernel/e820.c](https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/arch/x86/kernel/e820.c#L1061). This function goes through the memory map provided by the [e820](http://en.wikipedia.org/wiki/E820) and adds memory regions reserved by the kernel to the `memblock` with the `memblock_add` function. Since we have met the `memblock_add` function first, let's start from it.
 
 This function takes a physical base address and the size of the memory region as arguments and add them to the `memblock`. The `memblock_add` function does not do anything special in its body, but just calls the:
 
@@ -157,7 +157,7 @@ This function takes a physical base address and the size of the memory region as
 memblock_add_range(&memblock.memory, base, size, MAX_NUMNODES, 0);
 ```
 
-function. We pass the memory block type - `memory`, the physical base address and the size of the memory region, the maximum number of nodes which is 1 if `CONFIG_NODES_SHIFT` is not set in the configuration file or `1 << CONFIG_NODES_SHIFT` if it is set, and the flags. The `memblock_add_range` function adds a new memory region to the memory block. It starts by checking the size of the given region and if it is zero it just returns. After this, `memblock_add_range` checks the existence of the memory regions in the `memblock` structure with the given `memblock_type`. If there are no memory regions, we just fill a new `memory_region` with the given values and return (we already saw the implementation of this in the [First touch of the linux kernel memory manager framework](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-3)). If `memblock_type` is not empty, we start to add a new memory region to the `memblock` with the given `memblock_type`.
+function. We pass the memory block type - `memory`, the physical base address and the size of the memory region, the maximum number of nodes which is 1 if `CONFIG_NODES_SHIFT` is not set in the configuration file or `1 << CONFIG_NODES_SHIFT` if it is set, and the flags. The `memblock_add_range` function adds a new memory region to the memory block. It starts by checking the size of the given region and if it is zero it just returns. After this, `memblock_add_range` checks the existence of the memory regions in the `memblock` structure with the given `memblock_type`. If there are no memory regions, we just fill a new `memory_region` with the given values and return (we already saw the implementation of this in the [First touch of the Linux kernel memory manager framework](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-3)). If `memblock_type` is not empty, we start to add a new memory region to the `memblock` with the given `memblock_type`.
 
 First of all we get the end of the memory region with the:
 
@@ -165,7 +165,7 @@ First of all we get the end of the memory region with the:
 phys_addr_t end = base + memblock_cap_size(base, &size);
 ```
 
-`memblock_cap_size` adjusts `size` that `base + size` will not overflow. Its implementation is pretty easy:
+`memblock_cap_size` adjusts `size` so that `base + size` will not overflow. Its implementation is pretty easy:
 
 ```
 static inline phys_addr_t memblock_cap_size(phys_addr_t base, phys_addr_t *size)
@@ -331,10 +331,10 @@ There is also `memblock_reserve` function which does the same as `memblock_add`,
 
 Of course this is not the full API. Memblock provides APIs not only for adding `memory` and `reserved` memory regions, but also:
 
-* memblock\_remove - removes memory region from memblock;
-* memblock\_find\_in\_range - finds free area in given range;
-* memblock\_free - releases memory region in memblock;
-* for\_each\_mem\_range - iterates through memblock areas.
+* `memblock_remove` - removes memory region from memblock;
+* `memblock_find_in_range` - finds free area in given range;
+* `memblock_free` - releases memory region in memblock;
+* `for_each_mem_range` - iterates through memblock areas.
 
 and many more....
 
@@ -342,8 +342,8 @@ and many more....
 
 Memblock also provides an API for getting information about allocated memory regions in the `memblock`. It is split in two parts:
 
-* get\_allocated\_memblock\_memory\_regions\_info - getting info about memory regions;
-* get\_allocated\_memblock\_reserved\_regions\_info - getting info about reserved regions.
+* `get_allocated_memblock_memory_regions_info` - getting info about memory regions;
+* `get_allocated_memblock_reserved_regions_info` - getting info about reserved regions.
 
 Implementation of these functions is easy. Let's look at `get_allocated_memblock_reserved_regions_info` for example:
 
@@ -393,15 +393,15 @@ And you will see something like this:
 
 Memblock also has support in [debugfs](http://en.wikipedia.org/wiki/Debugfs). If you run the kernel on another architecture than `X86` you can access:
 
-* /sys/kernel/debug/memblock/memory
-* /sys/kernel/debug/memblock/reserved
-* /sys/kernel/debug/memblock/physmem
+* `/sys/kernel/debug/memblock/memory`
+* `/sys/kernel/debug/memblock/reserved`
+* `/sys/kernel/debug/memblock/physmem`
 
 to get a dump of the `memblock` contents.
 
 ## Conclusion
 
-This is the end of the first part about linux kernel memory management. If you have questions or suggestions, ping me on twitter [0xAX](https://twitter.com/0xAX), drop me an [email](mailto:anotherworldofworld@gmail.com) or just create an [issue](https://github.com/0xAX/linux-insides/issues/new).
+This is the end of the first part about Linux kernel memory management. If you have questions or suggestions, ping me on twitter [0xAX](https://twitter.com/0xAX), drop me an [email](mailto:anotherworldofworld@gmail.com) or just create an [issue](https://github.com/0xAX/linux-insides/issues/new).
 
 **Please note that English is not my first language and I am really sorry for any inconvenience. If you found any mistakes please send me a PR to** [**linux-insides**](https://github.com/0xAX/linux-insides)**.**
 
@@ -410,4 +410,4 @@ This is the end of the first part about linux kernel memory management. If you h
 * [e820](http://en.wikipedia.org/wiki/E820)
 * [numa](http://en.wikipedia.org/wiki/Non-uniform\_memory\_access)
 * [debugfs](http://en.wikipedia.org/wiki/Debugfs)
-* [First touch of the linux kernel memory manager framework](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-3)
+* [First touch of the Linux kernel memory manager framework](https://0xax.gitbook.io/linux-insides/summary/initialization/linux-initialization-3)
